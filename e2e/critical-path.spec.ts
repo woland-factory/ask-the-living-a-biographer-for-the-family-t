@@ -42,6 +42,12 @@ test("organizer signs in and creates their first space", async ({
   ).toBeVisible();
   await expect(page.getByText("1949 to 2026")).toBeVisible();
 
+  // A hard refresh of the space page shows the app, not raw API JSON.
+  await page.reload();
+  await expect(
+    page.getByRole("heading", { name: "Margaret Ellison" })
+  ).toBeVisible();
+
   // The space is now listed on home.
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Your spaces" })).toBeVisible();

@@ -28,7 +28,7 @@ export function App() {
         }
       />
       <Route
-        path="/spaces/:id"
+        path="/space/:id"
         element={
           loading ? (
             <AppShellLoading />

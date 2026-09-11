@@ -29,7 +29,7 @@ export function Home() {
   }, [load]);
 
   const onCreated = (space: Space) => {
-    navigate(`/spaces/${space.id}`);
+    navigate(`/space/${space.id}`);
   };
 
   return (
@@ -83,7 +83,7 @@ export function Home() {
                 );
                 return (
                   <li className="space-item" key={s.id}>
-                    <Link className="space-link" to={`/spaces/${s.id}`}>
+                    <Link className="space-link" to={`/space/${s.id}`}>
                       <span>
                         <span className="space-name">{s.subject_name}</span>
                         {years && (

@@ -38,6 +38,9 @@ services:
       UMAMI_WEBSITE_ID: ${UMAMI_WEBSITE_ID:-}
       SEED_DEMO: "1"
     expose: ["80"]
+    # Let the non-root app bind port 80 without extra privileges.
+    sysctls:
+      net.ipv4.ip_unprivileged_port_start: "0"
     depends_on:
       db:
         condition: service_healthy
@@ -46,7 +49,7 @@ services:
     oom_score_adj: 800
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost/healthz >/dev/null || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/healthz >/dev/null || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
