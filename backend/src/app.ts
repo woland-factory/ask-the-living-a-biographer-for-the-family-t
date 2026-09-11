@@ -46,6 +46,9 @@ export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> 
             remove: true,
           },
         },
+    // The verify URL carries a one-time token in its query string; automatic
+    // request logging would write it to the logs. Log deliberately instead.
+    disableRequestLogging: true,
     trustProxy: true,
     bodyLimit: 32 * 1024,
   });
