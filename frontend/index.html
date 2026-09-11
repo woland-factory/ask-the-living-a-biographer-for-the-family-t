@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="description" content="A calm place to gather your family's memories of the person you lost, in their own voices." />
+    <meta name="theme-color" content="#faf6ef" />
+    <title>Ask the Living</title>
+    <style>
+      /* Critical, inline styles so the first paint is real branded content. */
+      :root {
+        --paper: #faf6ef;
+        --ink: #2c2723;
+        --muted: #6d655c;
+        --sage: #4f6152;
+        --sage-ink: #f7f9f6;
+        --line: #e6ddcf;
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; padding: 0; }
+      body {
+        background: var(--paper);
+        color: var(--ink);
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        line-height: 1.55;
+        -webkit-font-smoothing: antialiased;
+      }
+      #root { min-height: 100vh; }
+      .fp-shell {
+        max-width: 34rem;
+        margin: 0 auto;
+        padding: 4.5rem 1.25rem 2rem;
+        text-align: center;
+      }
+      .fp-shell h1 {
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: 2rem;
+        line-height: 1.2;
+        margin: 0 0 0.75rem;
+        letter-spacing: -0.01em;
+      }
+      .fp-shell p {
+        color: var(--muted);
+        font-size: 1.05rem;
+        margin: 0 auto 2rem;
+        max-width: 26rem;
+      }
+      .fp-cta {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 48px;
+        padding: 0 1.5rem;
+        background: var(--sage);
+        color: var(--sage-ink);
+        border-radius: 999px;
+        font-size: 1rem;
+        font-weight: 600;
+        text-decoration: none;
+        border: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root">
+      <!-- Replaced by React on mount; present for an instant first paint. -->
+      <main class="fp-shell">
+        <h1>Remember them together.</h1>
+        <p>A calm place to gather your family's memories of the person you lost, in their own voices.</p>
+        <a class="fp-cta" href="/signin">Create a space</a>
+      </main>
+    </div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

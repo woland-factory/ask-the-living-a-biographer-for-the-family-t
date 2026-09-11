@@ -1,0 +1,39 @@
+name: ask-the-living-dev
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: askliving
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - dev-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d askliving"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      NODE_ENV: development
+      PORT: "8080"
+      DATABASE_URL: postgres://app:app@db:5432/askliving
+      PUBLIC_BASE_URL: http://127.0.0.1:8080
+      SESSION_SECRET: dev-only-insecure-secret-change-me
+      MAGIC_LINK_TTL_MIN: "15"
+      INTERNAL_SERVICE_KEY: ""
+      SEED_DEMO: "1"
+    ports:
+      - "127.0.0.1:8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  dev-db:

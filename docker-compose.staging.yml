@@ -1,0 +1,60 @@
+name: ask-the-living-a-biographer-for-the-family-t-staging
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: askliving
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    networks: [default]
+    mem_limit: 256m
+    oom_score_adj: 800
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d askliving"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ask-the-living-a-biographer-for-the-family-t-staging-web
+    environment:
+      NODE_ENV: production
+      PORT: "80"
+      DATABASE_URL: postgres://app:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@db:5432/askliving
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-}
+      SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET}
+      MAGIC_LINK_TTL_MIN: "15"
+      MAILER_URL: ${MAILER_URL:-http://central-mailer-prod-api:8000/send}
+      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-}
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-Ask the Living}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      UMAMI_URL: ${UMAMI_URL:-}
+      UMAMI_WEBSITE_ID: ${UMAMI_WEBSITE_ID:-}
+      SEED_DEMO: "1"
+    expose: ["80"]
+    depends_on:
+      db:
+        condition: service_healthy
+    networks: [default, staging]
+    mem_limit: 512m
+    oom_score_adj: 800
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost/healthz >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  staging:
+    external: true
+    name: factory-staging-net
+
+volumes:
+  db-data:
