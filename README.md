@@ -5,17 +5,32 @@ Living is a patient biographer for the people they left behind. Each family
 member answers, at their own pace, questions about the person they lost. Over
 time those answers gather into one life story told in the family's own voices.
 
-This repository is the foundation: a signed-in organizer can create a space for
-the person their family is remembering. Interviews, follow-ups, and the shared
-story are built on top of it.
+A signed-in organizer creates a space for the person their family is
+remembering, then records a voice interview about them. Follow-ups and the
+shared story are built on top of it.
+
+## Recording an interview
+
+Open a space and choose **Record a memory**. The app asks one question at a
+time from a curated biographer's bank. You record your answer in the browser,
+play it back, and save it. You can skip a topic for now, step away and come
+back where you left off, or finish the sitting whenever you like.
+
+Each recording is transcribed on your own device, in the browser, using a
+Whisper model that runs in a Web Worker. Your audio never leaves your device.
+The model weights download once from Hugging Face and are cached by the
+browser after that. If transcription cannot run, the recording is still saved
+and you can try transcribing it again later. The audio is the memory; the
+transcript is a convenience.
 
 ## What's inside
 
 - **backend/**: a Fastify API (TypeScript) that also serves the web app. It
-  handles magic-link sign-in, sessions, spaces, and health checks, and applies
-  its own SQL migrations on startup.
-- **frontend/**: a React and Vite single-page app.
-- **e2e/**: Playwright tests for the sign-in and create-a-space flow.
+  handles magic-link sign-in, spaces, interview sessions, and the audio store,
+  and applies its own SQL migrations on startup.
+- **frontend/**: a React and Vite single-page app. It also holds the question
+  bank and the on-device transcription worker.
+- **e2e/**: Playwright tests for sign-in, creating a space, and the interview.
 
 Data lives in PostgreSQL. In production the API talks to Postgres directly; the
 test suite uses an in-process Postgres so it needs no database of its own.

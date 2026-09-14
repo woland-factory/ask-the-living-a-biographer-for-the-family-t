@@ -25,7 +25,10 @@ function copyOnnxWasm(): Plugin {
       const dest = path.join(outDir, "ort");
       mkdirSync(dest, { recursive: true });
       for (const file of readdirSync(dist)) {
-        if (file.endsWith(".wasm")) {
+        // Only the single-threaded builds are usable: threaded ONNX needs
+        // SharedArrayBuffer, which needs cross-origin isolation (COOP+COEP)
+        // that this app does not set. Shipping them would only bloat the image.
+        if (file.endsWith(".wasm") && !file.includes("threaded")) {
           cpSync(path.join(dist, file), path.join(dest, file));
         }
       }
