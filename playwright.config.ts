@@ -16,7 +16,15 @@ export default defineConfig({
     trace: "retain-on-failure",
     actionTimeout: 15_000,
     navigationTimeout: 15_000,
-    launchOptions: { args: ["--no-sandbox"] },
+    launchOptions: {
+      args: [
+        "--no-sandbox",
+        // Auto-accept the mic prompt and feed a synthetic audio device so the
+        // interview recorder can be driven headlessly.
+        "--use-fake-ui-for-media-stream",
+        "--use-fake-device-for-media-stream",
+      ],
+    },
   },
   webServer: {
     // Production build served by the backend. The e2e run uses an in-process

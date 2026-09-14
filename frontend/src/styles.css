@@ -189,6 +189,81 @@ a { color: var(--sage); }
 .sk-line { height: 1rem; margin-bottom: 0.6rem; }
 .sk-card { height: 72px; margin-bottom: 0.75rem; }
 
+/* Interview */
+.interview-intro { margin: 0; font-size: 0.98rem; }
+.interview-card { padding: 1.75rem 1.5rem; }
+.topic-label {
+  color: var(--sage);
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin: 0 0 0.6rem;
+}
+.question-text {
+  font-size: 1.6rem;
+  line-height: 1.3;
+  margin: 0 0 1.5rem;
+}
+
+.record-area { margin-top: 0.5rem; }
+.record-actions { display: flex; flex-direction: column; gap: 0.6rem; margin-top: 0.5rem; }
+.record-btn { font-size: 1.05rem; }
+
+.recording-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  color: var(--danger);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  margin-bottom: 0.75rem;
+}
+.rec-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--danger);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+@media (prefers-reduced-motion: reduce) {
+  .rec-dot { animation: none; }
+}
+
+.answer-audio { width: 100%; display: block; }
+
+.quiet-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-top: 1.25rem;
+  justify-content: center;
+}
+
+.saved-heading { font-size: 1.15rem; margin: 0.5rem 0 0; }
+.saved-list { list-style: none; margin: 0; padding: 0; }
+.saved-item {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 1.1rem 1.25rem;
+  margin-bottom: 0.75rem;
+}
+.saved-prompt { font-weight: 600; font-family: Georgia, serif; margin: 0 0 0.6rem; }
+.saved-note { margin: 0.6rem 0 0; font-size: 0.92rem; }
+.saved-note .btn { margin-top: 0.5rem; }
+.saved-transcript {
+  margin: 0.6rem 0 0;
+  color: var(--ink);
+  background: #f4efe4;
+  border-radius: 10px;
+  padding: 0.65rem 0.85rem;
+  font-size: 0.97rem;
+}
+
 .muted { color: var(--muted); }
 .center { text-align: center; }
 .mt-2 { margin-top: 1.25rem; }

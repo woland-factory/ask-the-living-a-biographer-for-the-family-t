@@ -57,6 +57,34 @@ export interface Space {
   role?: string;
 }
 
+export type TranscriptStatus = "pending" | "done" | "failed";
+
+export interface Session {
+  id: string;
+  space_id: string;
+  membership_id: string;
+  started_at: string;
+  ended_at: string | null;
+}
+
+export interface AnswerSummary {
+  id: string;
+  bank_question_key: string;
+  prompt_text: string;
+  topic: string;
+  duration_ms: number;
+  transcript_status: TranscriptStatus;
+  transcript: string | null;
+  created_at: string;
+}
+
+export interface SessionProgress {
+  session: Session;
+  answered_keys: string[];
+  deferred_topics: string[];
+  answers: AnswerSummary[];
+}
+
 export const api = {
   me: () => request<Me>("/me"),
   requestMagicLink: (email: string) =>
@@ -76,4 +104,87 @@ export const api = {
       body: JSON.stringify(input),
     }),
   getSpace: (id: string) => request<Space>(`/spaces/${id}`),
+
+  startSession: (spaceId: string) =>
+    request<Session>(`/spaces/${spaceId}/sessions`, { method: "POST" }),
+  getSession: (sessionId: string) =>
+    request<SessionProgress>(`/sessions/${sessionId}`),
+  createAnswer: (
+    sessionId: string,
+    input: {
+      bank_question_key: string;
+      prompt_text: string;
+      topic: string;
+      duration_ms: number;
+    }
+  ) =>
+    request<{ id: string; transcript_status: TranscriptStatus }>(
+      `/sessions/${sessionId}/answers`,
+      { method: "POST", body: JSON.stringify(input) }
+    ),
+  uploadAudio: async (answerId: string, blob: Blob) => {
+    // Raw octet-stream body. Do not send the default JSON content-type.
+    // Strip any ";codecs=..." so the mime matches the server's allow-list.
+    const mime = (blob.type || "audio/webm").split(";")[0].trim();
+    let res: Response;
+    try {
+      res = await fetch(
+        `/answers/${answerId}/audio?mime=${encodeURIComponent(mime)}`,
+        {
+          method: "PUT",
+          credentials: "same-origin",
+          headers: { "content-type": "application/octet-stream" },
+          body: blob,
+        }
+      );
+    } catch {
+      throw new ApiError(0, GENERIC);
+    }
+    if (!res.ok) {
+      let message = GENERIC;
+      const text = await res.text();
+      if (text) {
+        try {
+          const body = JSON.parse(text);
+          if (body && typeof body === "object" && "error" in body) {
+            message = String((body as { error: unknown }).error) || GENERIC;
+          }
+        } catch {
+          /* keep generic */
+        }
+      }
+      throw new ApiError(res.status, message);
+    }
+  },
+  attachTranscript: (
+    answerId: string,
+    input: { transcript_status: "done" | "failed"; transcript?: string }
+  ) =>
+    request<AnswerSummary>(`/answers/${answerId}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
+  fetchAudio: async (answerId: string): Promise<Blob> => {
+    let res: Response;
+    try {
+      res = await fetch(`/answers/${answerId}/audio`, {
+        credentials: "same-origin",
+      });
+    } catch {
+      throw new ApiError(0, GENERIC);
+    }
+    if (!res.ok) throw new ApiError(res.status, GENERIC);
+    return res.blob();
+  },
+  deferTopic: (sessionId: string, topic: string) =>
+    request<{ ok: true }>(`/sessions/${sessionId}/defer`, {
+      method: "POST",
+      body: JSON.stringify({ topic }),
+    }),
+  completeSession: (sessionId: string) =>
+    request<{ id: string; ended_at: string; answered_count: number }>(
+      `/sessions/${sessionId}/complete`,
+      { method: "POST" }
+    ),
+  audioUrl: (answerId: string) => `/answers/${answerId}/audio`,
 };

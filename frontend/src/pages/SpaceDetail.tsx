@@ -67,6 +67,12 @@ export function SpaceDetail() {
               {view.space.subject_name.split(" ")[0]} will gather, in the voices
               of everyone who loved them.
             </p>
+            <Link
+              className="btn btn-primary btn-block"
+              to={`/space/${view.space.id}/interview`}
+            >
+              Record a memory
+            </Link>
             <Link className="btn btn-quiet" to="/">
               Back to your spaces
             </Link>
