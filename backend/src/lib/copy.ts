@@ -8,4 +8,5 @@ export const copy = {
   validation: "Please check what you entered and try again.",
   rateLimit: "You're going a little fast. Try again in a moment.",
   generic: "That didn't work. Check your connection and try again.",
+  tooLarge: "That recording is too large to save. Try a shorter one.",
 };

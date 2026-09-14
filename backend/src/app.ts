@@ -16,6 +16,7 @@ import { reportError } from "./lib/observability.js";
 import { registerAuthRoutes } from "./routes/auth.js";
 import { registerHealthRoutes } from "./routes/health.js";
 import { registerSpaceRoutes } from "./routes/spaces.js";
+import { registerInterviewRoutes } from "./routes/interview.js";
 import "./types.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -72,6 +73,9 @@ export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> 
       return reply.code(400).send({ error: copy.validation });
     }
     const status = err.statusCode ?? 500;
+    if (status === 413) {
+      return reply.code(413).send({ error: copy.tooLarge });
+    }
     if (status === 429) {
       return reply.code(429).send({ error: copy.rateLimit });
     }
@@ -83,12 +87,22 @@ export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> 
     return reply.code(status).send({ error: err.message || copy.generic });
   });
 
+  // Raw audio uploads arrive as octet-stream. Keep the bytes as a Buffer; the
+  // audio route sets its own larger bodyLimit. All other routes stay under the
+  // small global JSON limit.
+  app.addContentTypeParser(
+    "application/octet-stream",
+    { parseAs: "buffer" },
+    (_req, body, done) => done(null, body)
+  );
+
   const e2eLinks = config.isE2E ? new Map<string, string>() : undefined;
   if (e2eLinks) app.decorate("e2eLinks", e2eLinks);
 
   registerHealthRoutes(app, db);
   registerAuthRoutes(app, { db, config, e2eLinks });
   registerSpaceRoutes(app, db);
+  registerInterviewRoutes(app, db);
 
   // Serve the built SPA and provide a same-origin fallback for client routes.
   const staticDir = resolveStaticDir(config);

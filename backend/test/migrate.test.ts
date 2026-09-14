@@ -9,10 +9,11 @@ describe("migration runner", () => {
     if (db) await db.close();
   });
 
-  it("creates all five tables on an empty DB and is idempotent", async () => {
+  it("creates every table on an empty DB and is idempotent", async () => {
     db = await createPgliteDb();
     const first = await runMigrations(db);
     expect(first).toContain("0001_init.sql");
+    expect(first).toContain("0002_interview.sql");
 
     const tables = await db.query<{ table_name: string }>(
       `SELECT table_name FROM information_schema.tables
@@ -25,6 +26,10 @@ describe("migration runner", () => {
       "auth_sessions",
       "spaces",
       "memberships",
+      "interview_sessions",
+      "answers",
+      "answer_audio",
+      "topic_deferrals",
     ]) {
       expect(names).toContain(t);
     }
