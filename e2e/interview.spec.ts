@@ -19,14 +19,14 @@ async function signIn(
   expect(res.ok()).toBeTruthy();
   const { url } = await res.json();
   await page.goto(url);
-  await expect(
-    page.getByRole("heading", { name: "Create your first space" })
-  ).toBeVisible();
+  // Signed in on the home screen (new users and returning users alike).
+  await expect(page.getByRole("button", { name: "Sign out" })).toBeVisible();
 }
 
 async function createSpaceAndOpenInterview(page: Page, name: string): Promise<void> {
   await page.getByLabel("Who are we remembering?").fill(name);
-  await page.getByRole("button", { name: "Create a space" }).click();
+  // "Create a space" on a first space, "Create space" on later ones.
+  await page.getByRole("button", { name: /^Create( a)? space$/ }).click();
   await expect(page.getByRole("heading", { name })).toBeVisible();
   await page.getByRole("link", { name: "Record a memory" }).click();
   await expect(

@@ -9,12 +9,19 @@ export class ApiError extends Error {
 const GENERIC = "That didn't work. Check your connection and try again.";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const { headers: initHeaders, ...rest } = init ?? {};
+  // Only declare a JSON body when there actually is one. A bodyless POST with
+  // a JSON content-type makes the server try to parse an empty body and 400.
+  const headers: Record<string, string> = {
+    ...(init?.body != null ? { "content-type": "application/json" } : {}),
+    ...(initHeaders as Record<string, string> | undefined),
+  };
   let res: Response;
   try {
     res = await fetch(path, {
       credentials: "same-origin",
-      headers: { "content-type": "application/json" },
-      ...init,
+      ...rest,
+      headers,
     });
   } catch {
     throw new ApiError(0, GENERIC);
