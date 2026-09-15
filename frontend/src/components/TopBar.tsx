@@ -16,9 +16,14 @@ export function TopBar() {
         Ask the Living
       </Link>
       {user && (
-        <button className="btn btn-quiet" onClick={handleSignOut} type="button">
-          Sign out
-        </button>
+        <nav className="topbar-nav">
+          <Link className="btn btn-quiet" to="/settings">
+            Settings
+          </Link>
+          <button className="btn btn-quiet" onClick={handleSignOut} type="button">
+            Sign out
+          </button>
+        </nav>
       )}
     </header>
   );

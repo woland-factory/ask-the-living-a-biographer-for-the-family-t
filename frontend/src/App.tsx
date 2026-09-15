@@ -6,6 +6,8 @@ import { SignIn } from "./pages/SignIn";
 import { Home } from "./pages/Home";
 import { SpaceDetail } from "./pages/SpaceDetail";
 import { Interview } from "./pages/Interview";
+import { Settings } from "./pages/Settings";
+import { GapMap } from "./pages/GapMap";
 
 export function App() {
   const { user, loading } = useAuth();
@@ -47,6 +49,30 @@ export function App() {
             <AppShellLoading />
           ) : user ? (
             <Interview />
+          ) : (
+            <Navigate to="/signin" replace />
+          )
+        }
+      />
+      <Route
+        path="/space/:id/questions"
+        element={
+          loading ? (
+            <AppShellLoading />
+          ) : user ? (
+            <GapMap />
+          ) : (
+            <Navigate to="/signin" replace />
+          )
+        }
+      />
+      <Route
+        path="/settings"
+        element={
+          loading ? (
+            <AppShellLoading />
+          ) : user ? (
+            <Settings />
           ) : (
             <Navigate to="/signin" replace />
           )

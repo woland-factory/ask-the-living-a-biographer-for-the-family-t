@@ -73,6 +73,12 @@ export function SpaceDetail() {
             >
               Record a memory
             </Link>
+            <Link
+              className="btn btn-quiet btn-block"
+              to={`/space/${view.space.id}/questions`}
+            >
+              What's still open
+            </Link>
             <Link className="btn btn-quiet" to="/">
               Back to your spaces
             </Link>

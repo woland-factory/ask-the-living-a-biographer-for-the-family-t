@@ -5,6 +5,7 @@ import {
   api,
   ApiError,
   type AnswerSummary,
+  type Followup,
   type Session,
   type Space,
 } from "../api";
@@ -16,6 +17,12 @@ import { firstName, formatClock } from "../format";
 const GENERIC = "That didn't work. Check your connection and try again.";
 
 type Phase = "loading" | "error" | "active" | "completed";
+
+// The next thing to ask: either a curated bank question or a gentle follow-up
+// this member's own telling opened.
+type CurrentQ =
+  | { kind: "bank"; question: BankQuestion }
+  | { kind: "followup"; followup: Followup };
 
 interface Completion {
   count: number;
@@ -35,10 +42,20 @@ export function Interview() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
 
+  const [pendingFollowups, setPendingFollowups] = useState<Followup[]>([]);
+  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
+
   const recorder = useRecorder();
   const blobsRef = useRef<Map<string, Blob>>(new Map());
 
-  const current: BankQuestion | null = nextQuestion(answeredKeys, deferredTopics);
+  // A follow-up left open earlier comes first; otherwise walk the bank.
+  const nextFollowup = pendingFollowups.find((f) => !dismissed.has(f.id)) ?? null;
+  const bankQuestion = nextQuestion(answeredKeys, deferredTopics);
+  const current: CurrentQ | null = nextFollowup
+    ? { kind: "followup", followup: nextFollowup }
+    : bankQuestion
+      ? { kind: "bank", question: bankQuestion }
+      : null;
   const person = space ? firstName(space.subject_name) : "them";
 
   const load = useCallback(async () => {
@@ -58,6 +75,8 @@ export function Interview() {
       setAnsweredKeys(progress.answered_keys);
       setDeferredTopics(progress.deferred_topics);
       setSaved([...progress.answers].reverse());
+      setPendingFollowups(progress.followups ?? []);
+      setDismissed(new Set());
       setSavedThisSitting(0);
       setPhase("active");
     } catch {
@@ -84,6 +103,16 @@ export function Interview() {
         transcript,
       });
       setSaved((list) => list.map((a) => (a.id === answerId ? updated : a)));
+      // Ask for a gentle follow-up from what they just said. Without a key this
+      // returns nothing and the loop simply continues from the bank.
+      try {
+        const res = await api.generateFollowups(answerId);
+        if (res.followups.length > 0) {
+          setPendingFollowups((queue) => [...queue, ...res.followups]);
+        }
+      } catch {
+        /* a missing follow-up is never an error; the bank continues */
+      }
     } catch {
       try {
         await api.attachTranscript(answerId, { transcript_status: "failed" });
@@ -105,27 +134,42 @@ export function Interview() {
     setSaving(true);
     setSaveError("");
     const rec = recorder.recording;
+    const meta =
+      current.kind === "bank"
+        ? {
+            bank_question_key: current.question.key,
+            prompt_text: current.question.text,
+            topic: current.question.topic,
+          }
+        : {
+            bank_question_key: `followup:${current.followup.id}`,
+            prompt_text: current.followup.text,
+            topic: current.followup.topic,
+            question_id: current.followup.id,
+          };
     try {
       const created = await api.createAnswer(session.id, {
-        bank_question_key: current.key,
-        prompt_text: current.text,
-        topic: current.topic,
+        ...meta,
         duration_ms: rec.durationMs,
       });
       await api.uploadAudio(created.id, rec.blob);
       blobsRef.current.set(created.id, rec.blob);
       const summary: AnswerSummary = {
         id: created.id,
-        bank_question_key: current.key,
-        prompt_text: current.text,
-        topic: current.topic,
+        bank_question_key: meta.bank_question_key,
+        prompt_text: meta.prompt_text,
+        topic: meta.topic,
         duration_ms: rec.durationMs,
         transcript_status: "pending",
         transcript: null,
         created_at: new Date().toISOString(),
       };
       setSaved((list) => [...list, summary]);
-      setAnsweredKeys((keys) => [...keys, current.key]);
+      if (current.kind === "bank") {
+        setAnsweredKeys((keys) => [...keys, current.question.key]);
+      } else {
+        setDismissed((prev) => new Set(prev).add(current.followup.id));
+      }
       setSavedThisSitting((n) => n + 1);
       recorder.reset();
       setSaving(false);
@@ -136,9 +180,10 @@ export function Interview() {
     }
   }, [current, session, recorder, runTranscription]);
 
+  // "Not this topic yet" applies to bank questions only.
   const defer = useCallback(async () => {
-    if (!current || !session) return;
-    const topic = current.topic;
+    if (!current || current.kind !== "bank" || !session) return;
+    const topic = current.question.topic;
     setDeferredTopics((t) => [...t, topic]);
     recorder.reset();
     try {
@@ -147,6 +192,13 @@ export function Interview() {
       /* the local skip already advanced the interview; a retry can re-defer */
     }
   }, [current, session, recorder]);
+
+  // "Keep it on the map" leaves a follow-up open and moves past it for now.
+  const keepOnMap = useCallback(() => {
+    if (!current || current.kind !== "followup") return;
+    setDismissed((prev) => new Set(prev).add(current.followup.id));
+    recorder.reset();
+  }, [current, recorder]);
 
   const complete = useCallback(async () => {
     if (!session) return;
@@ -202,9 +254,20 @@ export function Interview() {
               Take your time. One question at a time, in your own voice.
             </p>
 
-            <section className="card interview-card" aria-live="polite">
-              <p className="topic-label">{topicLabel(current.topic)}</p>
-              <h1 className="question-text">{current.text}</h1>
+            <section
+              className={`card interview-card${current.kind === "followup" ? " interview-followup" : ""}`}
+              aria-live="polite"
+            >
+              {current.kind === "followup" ? (
+                <p className="topic-label followup-label">
+                  A question your telling opened
+                </p>
+              ) : (
+                <p className="topic-label">{topicLabel(current.question.topic)}</p>
+              )}
+              <h1 className="question-text">
+                {current.kind === "followup" ? current.followup.text : current.question.text}
+              </h1>
 
               <RecordArea
                 recorder={recorder}
@@ -218,13 +281,15 @@ export function Interview() {
                 recorder.status === "denied" ||
                 recorder.status === "unsupported") && (
                 <div className="quiet-actions">
-                  <button
-                    className="btn btn-quiet"
-                    type="button"
-                    onClick={defer}
-                  >
-                    Not this topic yet
-                  </button>
+                  {current.kind === "followup" ? (
+                    <button className="btn btn-quiet" type="button" onClick={keepOnMap}>
+                      Keep it on the map
+                    </button>
+                  ) : (
+                    <button className="btn btn-quiet" type="button" onClick={defer}>
+                      Not this topic yet
+                    </button>
+                  )}
                   <Link className="btn btn-quiet" to={`/space/${id}`}>
                     Save and step away
                   </Link>

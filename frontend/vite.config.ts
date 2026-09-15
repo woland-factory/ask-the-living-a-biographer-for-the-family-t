@@ -4,7 +4,7 @@ import { createRequire } from "node:module";
 import { cpSync, mkdirSync, readdirSync } from "node:fs";
 import path from "node:path";
 
-const API_ROUTES = ["/auth", "/spaces", "/sessions", "/answers", "/me", "/healthz"];
+const API_ROUTES = ["/auth", "/spaces", "/sessions", "/answers", "/questions", "/me", "/healthz"];
 const proxyTarget = process.env.API_PROXY ?? "http://127.0.0.1:8080";
 
 /**

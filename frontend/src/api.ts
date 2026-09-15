@@ -85,11 +85,67 @@ export interface AnswerSummary {
   created_at: string;
 }
 
+export interface Followup {
+  id: string;
+  text: string;
+  topic: string;
+}
+
 export interface SessionProgress {
   session: Session;
   answered_keys: string[];
   deferred_topics: string[];
   answers: AnswerSummary[];
+  followups: Followup[];
+}
+
+export interface LlmCredential {
+  configured: boolean;
+  provider_label?: string | null;
+  base_url?: string;
+  model?: string;
+  key_last4?: string;
+  gateway_available: boolean;
+}
+
+export type QuestionStatus = "open" | "answered" | "deferred" | "lost";
+export type QuestionOrigin = "bank" | "followup";
+
+export interface Question {
+  id: string;
+  text: string;
+  topic: string;
+  origin: QuestionOrigin;
+  status: QuestionStatus;
+  membership_id: string | null;
+  parent_answer_id: string | null;
+  created_at: string;
+}
+
+export interface QuestionCounts {
+  open: number;
+  answered: number;
+  deferred: number;
+  lost: number;
+  total: number;
+}
+
+export interface Person {
+  membership_id: string;
+  relationship_to_subject: string | null;
+}
+
+export interface GapMap {
+  questions: Question[];
+  counts: QuestionCounts;
+  people: Person[];
+  topics: string[];
+}
+
+export interface QuestionFilters {
+  status?: QuestionStatus;
+  topic?: string;
+  membership_id?: string;
 }
 
 export const api = {
@@ -123,11 +179,17 @@ export const api = {
       prompt_text: string;
       topic: string;
       duration_ms: number;
+      question_id?: string;
     }
   ) =>
     request<{ id: string; transcript_status: TranscriptStatus }>(
       `/sessions/${sessionId}/answers`,
       { method: "POST", body: JSON.stringify(input) }
+    ),
+  generateFollowups: (answerId: string) =>
+    request<{ followups: Followup[]; mode: string }>(
+      `/answers/${answerId}/followups`,
+      { method: "POST" }
     ),
   uploadAudio: async (answerId: string, blob: Blob) => {
     // Raw octet-stream body. Do not send the default JSON content-type.
@@ -194,4 +256,32 @@ export const api = {
       { method: "POST" }
     ),
   audioUrl: (answerId: string) => `/answers/${answerId}/audio`,
+
+  getLlmCredential: () => request<LlmCredential>("/me/llm-credential"),
+  saveLlmCredential: (input: {
+    base_url: string;
+    api_key: string;
+    model?: string;
+    provider_label?: string;
+  }) =>
+    request<LlmCredential>("/me/llm-credential", {
+      method: "PUT",
+      body: JSON.stringify(input),
+    }),
+  deleteLlmCredential: () =>
+    request<void>("/me/llm-credential", { method: "DELETE" }),
+
+  getQuestions: (spaceId: string, filters: QuestionFilters = {}) => {
+    const params = new URLSearchParams();
+    if (filters.status) params.set("status", filters.status);
+    if (filters.topic) params.set("topic", filters.topic);
+    if (filters.membership_id) params.set("membership_id", filters.membership_id);
+    const qs = params.toString();
+    return request<GapMap>(`/spaces/${spaceId}/questions${qs ? `?${qs}` : ""}`);
+  },
+  patchQuestion: (questionId: string, status: QuestionStatus) =>
+    request<Question>(`/questions/${questionId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    }),
 };
