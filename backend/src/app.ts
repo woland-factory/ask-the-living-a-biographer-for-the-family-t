@@ -17,6 +17,9 @@ import { registerAuthRoutes } from "./routes/auth.js";
 import { registerHealthRoutes } from "./routes/health.js";
 import { registerSpaceRoutes } from "./routes/spaces.js";
 import { registerInterviewRoutes } from "./routes/interview.js";
+import { registerSettingsRoutes } from "./routes/settings.js";
+import { registerQuestionRoutes } from "./routes/questions.js";
+import type { ChatFn } from "./lib/llm.js";
 import "./types.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -30,6 +33,8 @@ const FALLBACK_HTML = `<!doctype html><html lang="en"><head><meta charset="utf-8
 export interface BuildAppOptions {
   db: Db;
   config?: Partial<AppConfig>;
+  /** Test seam for the LLM transport. Production never sets it. */
+  llm?: { chat?: ChatFn };
 }
 
 export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> {
@@ -102,7 +107,9 @@ export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> 
   registerHealthRoutes(app, db);
   registerAuthRoutes(app, { db, config, e2eLinks });
   registerSpaceRoutes(app, db);
-  registerInterviewRoutes(app, db);
+  registerInterviewRoutes(app, db, { config, chat: opts.llm?.chat });
+  registerSettingsRoutes(app, { db, config });
+  registerQuestionRoutes(app, db);
 
   // Serve the built SPA and provide a same-origin fallback for client routes.
   const staticDir = resolveStaticDir(config);

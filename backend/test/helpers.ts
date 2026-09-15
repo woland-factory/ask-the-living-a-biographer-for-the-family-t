@@ -4,6 +4,7 @@ import { createPgliteDb } from "../src/db/pglite.js";
 import type { Db } from "../src/db/index.js";
 import { runMigrations } from "../src/db/migrate.js";
 import { normalizeEmail } from "../src/lib/crypto.js";
+import type { ChatFn } from "../src/lib/llm.js";
 
 export interface TestContext {
   app: FastifyInstance;
@@ -11,7 +12,8 @@ export interface TestContext {
 }
 
 export async function makeTestApp(
-  configOverride: Record<string, unknown> = {}
+  configOverride: Record<string, unknown> = {},
+  opts: { llm?: { chat?: ChatFn } } = {}
 ): Promise<TestContext> {
   const db = await createPgliteDb();
   await runMigrations(db);
@@ -26,6 +28,7 @@ export async function makeTestApp(
       sessionSecret: "test-secret-value-for-signing-cookies-1234567890",
       ...configOverride,
     },
+    llm: opts.llm,
   });
   await app.ready();
   return { app, db };

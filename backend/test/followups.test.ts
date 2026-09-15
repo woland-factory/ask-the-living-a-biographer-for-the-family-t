@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   buildFollowupPrompt,
   filterCandidates,
@@ -8,6 +8,7 @@ import {
 } from "../src/lib/followups.js";
 import { copyViolations } from "../src/lib/copy-rules.js";
 import type { ChatFn, LlmAccess } from "../src/lib/llm.js";
+import { makeTestApp, signIn, type TestContext } from "./helpers.js";
 
 // The wounding questions a raw chatbot or fixed prompt list would blurt out.
 // None may ever survive the guardrail.
@@ -167,6 +168,225 @@ describe("generateFollowups", () => {
     const chat: ChatFn = async () => `${GENTLE[0]}\n${WOUNDING[0]}`;
     const out = await generateFollowups({ access: gatewayAccess, chat, ctx: SCENARIOS[0] });
     expect(out).toEqual([GENTLE[0]]);
+  });
+});
+
+describe("POST /answers/:id/followups endpoint", () => {
+  let ctx: TestContext;
+  let reply: () => Promise<string>;
+  const GRANTED = "fu-user@example.com";
+
+  const chat: ChatFn = () => reply();
+
+  beforeAll(async () => {
+    ctx = await makeTestApp(
+      {
+        llmGatewayUrl: "https://gateway.example/v1",
+        llmApiKey: "gw-key",
+        llmGatewayModel: "claude-haiku",
+        llmGatewayAllowEmails: [GRANTED],
+      },
+      { llm: { chat } }
+    );
+  });
+  afterAll(async () => {
+    await ctx.app.close();
+    await ctx.db.close();
+  });
+
+  // Sign in once per email; the per-email magic-link limiter caps at 5.
+  const cookies = new Map<string, string>();
+  async function cookieFor(email: string): Promise<string> {
+    if (!cookies.has(email)) cookies.set(email, await signIn(ctx.app, email));
+    return cookies.get(email)!;
+  }
+
+  async function setup(email: string, transcript: string | null) {
+    const cookie = await cookieFor(email);
+    const space = await ctx.app.inject({
+      method: "POST",
+      url: "/spaces",
+      headers: { cookie },
+      payload: { subject_name: "Daniel Okoro" },
+    });
+    const spaceId = space.json().id;
+    const session = await ctx.app.inject({
+      method: "POST",
+      url: `/spaces/${spaceId}/sessions`,
+      headers: { cookie },
+    });
+    const sessionId = session.json().id;
+    const created = await ctx.app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/answers`,
+      headers: { cookie },
+      payload: {
+        bank_question_key: "everyday-ordinary-day",
+        prompt_text: "What did an ordinary day look like for them?",
+        topic: "everyday",
+        duration_ms: 2000,
+      },
+    });
+    const answerId = created.json().id;
+    if (transcript !== null) {
+      await ctx.app.inject({
+        method: "PATCH",
+        url: `/answers/${answerId}`,
+        headers: { cookie },
+        payload: { transcript_status: "done", transcript },
+      });
+    }
+    return { cookie, spaceId, sessionId, answerId };
+  }
+
+  it("stores a safe follow-up and surfaces it on the gap map", async () => {
+    reply = async () => "What did his coffee mornings look like?";
+    const { cookie, spaceId, answerId } = await setup(
+      GRANTED,
+      "He made the coffee every morning before anyone else woke."
+    );
+    const res = await ctx.app.inject({
+      method: "POST",
+      url: `/answers/${answerId}/followups`,
+      headers: { cookie },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.mode).toBe("gateway");
+    expect(body.followups).toHaveLength(1);
+    expect(body.followups[0].text).toBe("What did his coffee mornings look like?");
+
+    const row = await ctx.db.query<{
+      origin: string;
+      parent_answer_id: string;
+      membership_id: string;
+    }>(
+      "SELECT origin, parent_answer_id, membership_id FROM questions WHERE id = $1",
+      [body.followups[0].id]
+    );
+    expect(row.rows[0].origin).toBe("followup");
+    expect(row.rows[0].parent_answer_id).toBe(answerId);
+    expect(row.rows[0].membership_id).not.toBeNull();
+
+    const map = await ctx.app.inject({
+      method: "GET",
+      url: `/spaces/${spaceId}/questions`,
+      headers: { cookie },
+    });
+    const texts = map.json().questions.map((q: { text: string }) => q.text);
+    expect(texts).toContain("What did his coffee mornings look like?");
+  });
+
+  it("stores nothing when the model returns a wounding candidate", async () => {
+    reply = async () => "How did he die?";
+    const { cookie, answerId } = await setup(GRANTED, "He loved his garden.");
+    const res = await ctx.app.inject({
+      method: "POST",
+      url: `/answers/${answerId}/followups`,
+      headers: { cookie },
+    });
+    expect(res.json().followups).toEqual([]);
+    const rows = await ctx.db.query(
+      "SELECT 1 FROM questions WHERE parent_answer_id = $1",
+      [answerId]
+    );
+    expect(rows.rows).toHaveLength(0);
+  });
+
+  it("caps stored follow-ups at two per answer", async () => {
+    reply = async () =>
+      [
+        "What did his coffee mornings look like?",
+        "What did she like to grow in her garden?",
+        "What kinds of radios did he like to fix?",
+      ].join("\n");
+    const { cookie, answerId } = await setup(GRANTED, "He fixed radios and grew tomatoes.");
+    const res = await ctx.app.inject({
+      method: "POST",
+      url: `/answers/${answerId}/followups`,
+      headers: { cookie },
+    });
+    expect(res.json().followups.length).toBeLessThanOrEqual(2);
+    const rows = await ctx.db.query(
+      "SELECT 1 FROM questions WHERE parent_answer_id = $1",
+      [answerId]
+    );
+    expect(rows.rows.length).toBeLessThanOrEqual(2);
+  });
+
+  it("returns [] and mode off for a user with no key or grant, and the bank still continues", async () => {
+    reply = async () => "What did his coffee mornings look like?";
+    const { cookie, sessionId, answerId } = await setup(
+      "fu-off@example.com",
+      "He always sang in the kitchen."
+    );
+    const res = await ctx.app.inject({
+      method: "POST",
+      url: `/answers/${answerId}/followups`,
+      headers: { cookie },
+    });
+    expect(res.json()).toEqual({ followups: [], mode: "off" });
+    const rows = await ctx.db.query(
+      "SELECT 1 FROM questions WHERE parent_answer_id = $1",
+      [answerId]
+    );
+    expect(rows.rows).toHaveLength(0);
+
+    // The interview still offers the next bank question via the session.
+    const session = await ctx.app.inject({
+      method: "GET",
+      url: `/sessions/${sessionId}`,
+      headers: { cookie },
+    });
+    expect(session.json().followups).toEqual([]);
+  });
+
+  it("writes no rows when the answer has no completed transcript", async () => {
+    reply = async () => "What did his coffee mornings look like?";
+    const { cookie, answerId } = await setup(GRANTED, null);
+    const res = await ctx.app.inject({
+      method: "POST",
+      url: `/answers/${answerId}/followups`,
+      headers: { cookie },
+    });
+    expect(res.json().followups).toEqual([]);
+    const rows = await ctx.db.query(
+      "SELECT 1 FROM questions WHERE parent_answer_id = $1",
+      [answerId]
+    );
+    expect(rows.rows).toHaveLength(0);
+  });
+
+  it("still returns 200 with [] when the model throws", async () => {
+    reply = async () => {
+      throw new Error("boom");
+    };
+    const { cookie, answerId } = await setup(GRANTED, "He told the best stories.");
+    const res = await ctx.app.inject({
+      method: "POST",
+      url: `/answers/${answerId}/followups`,
+      headers: { cookie },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().followups).toEqual([]);
+  });
+
+  it("enforces auth and membership", async () => {
+    reply = async () => "What did his coffee mornings look like?";
+    const { answerId } = await setup(GRANTED, "He loved the sea.");
+    const anon = await ctx.app.inject({
+      method: "POST",
+      url: `/answers/${answerId}/followups`,
+    });
+    expect(anon.statusCode).toBe(401);
+
+    const strangerCookie = await signIn(ctx.app, "fu-stranger@example.com");
+    const forbidden = await ctx.app.inject({
+      method: "POST",
+      url: `/answers/${answerId}/followups`,
+      headers: { cookie: strangerCookie },
+    });
+    expect(forbidden.statusCode).toBe(403);
   });
 });
 
