@@ -9,6 +9,7 @@ COPY frontend/package.json ./frontend/
 RUN npm ci
 COPY backend ./backend
 COPY frontend ./frontend
+COPY shared ./shared
 RUN npm run build
 
 # 2) Backend production dependencies only (no frontend or dev tooling).
@@ -28,6 +29,7 @@ COPY --from=prod-deps /app/node_modules ./node_modules
 COPY --from=build /app/backend/dist ./backend/dist
 COPY --from=build /app/backend/migrations ./backend/migrations
 COPY --from=build /app/frontend/dist ./frontend/dist
+COPY --from=build /app/shared ./shared
 COPY package.json ./package.json
 USER app
 EXPOSE 80

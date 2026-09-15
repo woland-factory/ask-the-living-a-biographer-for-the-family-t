@@ -14,6 +14,7 @@ describe("migration runner", () => {
     const first = await runMigrations(db);
     expect(first).toContain("0001_init.sql");
     expect(first).toContain("0002_interview.sql");
+    expect(first).toContain("0003_followups.sql");
 
     const tables = await db.query<{ table_name: string }>(
       `SELECT table_name FROM information_schema.tables
@@ -30,6 +31,8 @@ describe("migration runner", () => {
       "answers",
       "answer_audio",
       "topic_deferrals",
+      "llm_credentials",
+      "questions",
     ]) {
       expect(names).toContain(t);
     }
