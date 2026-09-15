@@ -23,14 +23,33 @@ browser after that. If transcription cannot run, the recording is still saved
 and you can try transcribing it again later. The audio is the memory; the
 transcript is a convenience.
 
+## Follow-up questions (optional)
+
+The interview can ask one gentle follow-up drawn from what you just said. This
+is off until you add your own model key in **Settings**. Paste an
+OpenAI-compatible endpoint and key. Your key is encrypted, stored for you
+alone, and sent only to the address you enter. We show only the last four
+characters and never log it.
+
+Without a key, the interview simply runs from the curated question bank. Every
+generated question passes a restraint guardrail before it can be shown: it must
+be a single gentle question, never about the death or its cause, never prying
+at feelings or blame. When nothing kind fits, the app stays quiet.
+
+Each space also keeps a **gap map**: every open question about the person, who
+it belongs to, and what the family has answered, deferred, or chosen to let go.
+
 ## What's inside
 
 - **backend/**: a Fastify API (TypeScript) that also serves the web app. It
   handles magic-link sign-in, spaces, interview sessions, and the audio store,
   and applies its own SQL migrations on startup.
-- **frontend/**: a React and Vite single-page app. It also holds the question
-  bank and the on-device transcription worker.
-- **e2e/**: Playwright tests for sign-in, creating a space, and the interview.
+- **frontend/**: a React and Vite single-page app. It holds the on-device
+  transcription worker, the settings screen, and the gap map.
+- **shared/**: `bank.json`, the curated question bank, imported by the frontend
+  and read by the backend so the two never drift.
+- **e2e/**: Playwright tests for sign-in, creating a space, the interview,
+  settings, and the gap map.
 
 Data lives in PostgreSQL. In production the API talks to Postgres directly; the
 test suite uses an in-process Postgres so it needs no database of its own.

@@ -37,6 +37,13 @@ services:
       UMAMI_URL: ${UMAMI_URL:-}
       UMAMI_WEBSITE_ID: ${UMAMI_WEBSITE_ID:-}
       SEED_DEMO: "1"
+      # Follow-up questions. BYOK works without any of these; the gateway tier
+      # is inert until the owner grants it. All default empty.
+      LLM_CRED_SECRET: ${LLM_CRED_SECRET:-}
+      LLM_GATEWAY_URL: ${LLM_GATEWAY_URL:-}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_GATEWAY_MODEL: ${LLM_GATEWAY_MODEL:-claude-haiku}
+      LLM_GATEWAY_ALLOW_EMAILS: ${LLM_GATEWAY_ALLOW_EMAILS:-}
     expose: ["80"]
     # Let the non-root app bind port 80 without extra privileges.
     sysctls:
