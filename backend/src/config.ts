@@ -15,6 +15,33 @@ export interface AppConfig {
   umamiWebsiteId: string;
   seedDemo: boolean;
   staticDir: string | null;
+  llmCredSecret: string;
+  llmGatewayUrl: string;
+  llmApiKey: string;
+  llmGatewayModel: string;
+  llmGatewayAllowEmails: string[];
+}
+
+const GATEWAY_MODELS = new Set([
+  "claude-sonnet",
+  "claude-haiku",
+  "gpt-4o",
+  "gpt-4o-mini",
+  "mistral-large",
+  "groq-llama",
+]);
+
+/** Only a catalog model id is allowed; an unknown value falls back to the default. */
+function gatewayModel(value: string | undefined): string {
+  const v = (value ?? "").trim();
+  return GATEWAY_MODELS.has(v) ? v : "claude-haiku";
+}
+
+function emailList(value: string | undefined): string[] {
+  return (value ?? "")
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter((e) => e.length > 0);
 }
 
 function num(value: string | undefined, fallback: number): number {
@@ -46,5 +73,16 @@ export function loadConfig(): AppConfig {
     umamiWebsiteId: process.env.UMAMI_WEBSITE_ID ?? "",
     seedDemo: process.env.SEED_DEMO === "1",
     staticDir: process.env.STATIC_DIR ?? null,
+    // Key material for BYOK credential encryption. Falls back to SESSION_SECRET,
+    // then the dev-only default, so local runs work without extra setup.
+    // Production should set a dedicated LLM_CRED_SECRET.
+    llmCredSecret:
+      process.env.LLM_CRED_SECRET ||
+      process.env.SESSION_SECRET ||
+      "dev-only-insecure-session-secret-please-change-me",
+    llmGatewayUrl: process.env.LLM_GATEWAY_URL ?? "",
+    llmApiKey: process.env.LLM_API_KEY ?? "",
+    llmGatewayModel: gatewayModel(process.env.LLM_GATEWAY_MODEL),
+    llmGatewayAllowEmails: emailList(process.env.LLM_GATEWAY_ALLOW_EMAILS),
   };
 }
