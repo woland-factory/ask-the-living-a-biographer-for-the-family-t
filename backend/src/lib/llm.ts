@@ -30,17 +30,28 @@ interface CredentialRow {
 }
 
 /**
- * Who may use the owner-granted gateway tier. EPIC 3: only a user whose email
- * the owner listed in LLM_GATEWAY_ALLOW_EMAILS. This is the "explicitly
- * validated by the owner" path and needs no invites. It must never default to
- * true for an anonymous or ordinary signed-in user.
+ * Who may use the owner-granted gateway tier by allow-listed email. EPIC 3:
+ * a user whose email the owner listed in LLM_GATEWAY_ALLOW_EMAILS. This is the
+ * "explicitly validated by the owner" path. It must never default to true for
+ * an anonymous or ordinary signed-in user; a guest (null email) is never on it.
  *
- * Extension point: EPIC 4 widens this to invited users. Widen HERE, never by
- * loosening the default.
+ * The invited-user path lives in resolveLlmAccess (see joinedByInvite): a
+ * relative who joined by link counts as owner-validated. Widen access THERE,
+ * never by loosening this default.
  */
 export function gatewayEligible(user: SessionUser, config: AppConfig): boolean {
-  const email = user.email.trim().toLowerCase();
+  const email = (user.email ?? "").trim().toLowerCase();
   return email.length > 0 && config.llmGatewayAllowEmails.includes(email);
+}
+
+/** True when the user joined a space by invite link. Their membership carries an
+ * invite_id, which is the "owner-validated" marker for the gateway tier. */
+export async function joinedByInvite(db: Db, userId: string): Promise<boolean> {
+  const { rows } = await db.query(
+    "SELECT 1 FROM memberships WHERE user_id = $1 AND invite_id IS NOT NULL LIMIT 1",
+    [userId]
+  );
+  return rows.length > 0;
 }
 
 /**
@@ -68,7 +79,9 @@ export async function resolveLlmAccess(
     return { mode: "byok", baseUrl: row.base_url, apiKey, model: row.model };
   }
 
-  if (config.llmGatewayUrl && config.llmApiKey && gatewayEligible(user, config)) {
+  const gatewayGranted =
+    gatewayEligible(user, config) || (await joinedByInvite(db, user.id));
+  if (config.llmGatewayUrl && config.llmApiKey && gatewayGranted) {
     return {
       mode: "gateway",
       baseUrl: config.llmGatewayUrl,

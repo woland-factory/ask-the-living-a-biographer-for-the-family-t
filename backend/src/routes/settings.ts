@@ -1,4 +1,4 @@
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { AppConfig } from "../config.js";
 import type { Db } from "../db/index.js";
 import { copy } from "../lib/copy.js";
@@ -21,11 +21,25 @@ export function registerSettingsRoutes(
   const requireAuth = makeRequireAuth(db);
   const mutate = { rateLimit: { max: 60, timeWindow: "1 minute" } };
 
-  const gatewayAvailable = (user: { id: string; email: string; display_name: string | null }) =>
-    Boolean(config.llmGatewayUrl && config.llmApiKey && gatewayEligible(user, config));
+  const gatewayAvailable = (user: {
+    id: string;
+    email: string | null;
+    display_name: string | null;
+  }) => Boolean(config.llmGatewayUrl && config.llmApiKey && gatewayEligible(user, config));
+
+  // A guest joined by invite has no email, so no place to manage a key. Deny
+  // every credential route server-side, not just by hiding the button.
+  const denyGuest = (req: FastifyRequest, reply: FastifyReply): boolean => {
+    if (req.user!.email === null) {
+      reply.code(403).send({ error: copy.forbidden });
+      return true;
+    }
+    return false;
+  };
 
   // The user's own credential, redacted. The full key is never returned.
   app.get("/me/llm-credential", { preHandler: requireAuth }, async (req, reply) => {
+    if (denyGuest(req, reply)) return reply;
     const user = req.user!;
     const { rows } = await db.query<CredRow>(
       `SELECT base_url, model, provider_label, key_last4
@@ -67,6 +81,7 @@ export function registerSettingsRoutes(
       },
     },
     async (req, reply) => {
+      if (denyGuest(req, reply)) return reply;
       const user = req.user!;
       const body = req.body as {
         base_url: string;
@@ -119,6 +134,7 @@ export function registerSettingsRoutes(
     "/me/llm-credential",
     { preHandler: requireAuth, config: mutate },
     async (req, reply) => {
+      if (denyGuest(req, reply)) return reply;
       await db.query("DELETE FROM llm_credentials WHERE user_id = $1", [req.user!.id]);
       return reply.code(204).send();
     }

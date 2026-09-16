@@ -9,4 +9,6 @@ export const copy = {
   rateLimit: "You're going a little fast. Try again in a moment.",
   generic: "That didn't work. Check your connection and try again.",
   tooLarge: "That recording is too large to save. Try a shorter one.",
+  inviteGone: "That invite link was already used or has expired. Ask your family to send a fresh one.",
+  sittingPrivate: "Each sitting stays private to its teller.",
 };

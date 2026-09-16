@@ -8,7 +8,7 @@ export const SESSION_COOKIE = "atl_session";
 
 export interface SessionUser {
   id: string;
-  email: string;
+  email: string | null;
   display_name: string | null;
 }
 
@@ -55,7 +55,7 @@ export async function resolveSession(
   const { rows } = await db.query<{
     session_id: string;
     user_id: string;
-    email: string;
+    email: string | null;
     display_name: string | null;
     expires_at: string;
   }>(

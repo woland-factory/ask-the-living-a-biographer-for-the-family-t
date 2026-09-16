@@ -122,6 +122,12 @@ async function requireSession(
     reply.code(403).send({ error: copy.forbidden });
     return null;
   }
+  // A sitting is private to its own teller. Another family member sharing the
+  // space does not grant access to this raw session or its audio.
+  if (membership.id !== session.membership_id) {
+    reply.code(403).send({ error: copy.sittingPrivate });
+    return null;
+  }
   return session;
 }
 
@@ -143,6 +149,11 @@ async function requireAnswer(
   const membership = await membershipFor(db, req.user!.id, answer.space_id);
   if (!membership) {
     reply.code(403).send({ error: copy.forbidden });
+    return null;
+  }
+  // An answer and its audio are private to the teller who recorded them.
+  if (membership.id !== answer.membership_id) {
+    reply.code(403).send({ error: copy.sittingPrivate });
     return null;
   }
   return answer;
@@ -225,12 +236,24 @@ export function registerInterviewRoutes(
           LIMIT ${ANSWERS_LIST_LIMIT}`,
         [session.id]
       );
-      // This member's open follow-ups, so the interview can offer them again.
-      const followups = await db.query<{ id: string; text: string; topic: string }>(
-        `SELECT id, text, topic FROM questions
-          WHERE space_id = $1 AND membership_id = $2
-            AND origin = 'followup' AND status = 'open'
-          ORDER BY created_at DESC`,
+      // Everything open for this member: their own follow-ups, plus anything
+      // routed to them. A question routed away leaves the teller's queue and
+      // joins the target's. Routed items sort first: a question your family
+      // sent you is the first thing your next sitting offers.
+      const followups = await db.query<{
+        id: string;
+        text: string;
+        topic: string;
+        routed: boolean;
+      }>(
+        `SELECT q.id, q.text, q.topic,
+                (q.assigned_to IS NOT NULL) AS routed
+           FROM questions q
+          WHERE q.space_id = $1 AND q.status = 'open'
+            AND (q.assigned_to = $2
+                 OR (q.assigned_to IS NULL AND q.origin = 'followup'
+                     AND q.membership_id = $2))
+          ORDER BY (q.assigned_to IS NOT NULL) DESC, q.created_at DESC`,
         [session.space_id, session.membership_id]
       );
 

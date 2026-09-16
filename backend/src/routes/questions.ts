@@ -19,8 +19,12 @@ interface QuestionRow {
   text: string;
   status: string;
   parent_answer_id: string | null;
+  assigned_to: string | null;
   created_at: string;
 }
+
+const QUESTION_COLUMNS = `id, space_id, membership_id, origin, topic, text, status,
+              parent_answer_id, assigned_to, created_at`;
 
 function questionView(row: QuestionRow) {
   return {
@@ -31,6 +35,7 @@ function questionView(row: QuestionRow) {
     status: row.status,
     membership_id: row.membership_id,
     parent_answer_id: row.parent_answer_id,
+    assigned_to: row.assigned_to,
     created_at: row.created_at,
   };
 }
@@ -103,8 +108,7 @@ export function registerQuestionRoutes(app: FastifyInstance, db: Db): void {
     }
 
     const list = await db.query<QuestionRow>(
-      `SELECT id, space_id, membership_id, origin, topic, text, status,
-              parent_answer_id, created_at
+      `SELECT ${QUESTION_COLUMNS}
          FROM questions
         WHERE ${where.join(" AND ")}
         ORDER BY (status = 'open') DESC, created_at DESC
@@ -125,9 +129,14 @@ export function registerQuestionRoutes(app: FastifyInstance, db: Db): void {
       counts.total += n;
     }
 
-    const people = await db.query<{ membership_id: string; relationship_to_subject: string | null }>(
-      `SELECT id AS membership_id, relationship_to_subject
-         FROM memberships WHERE space_id = $1 ORDER BY created_at ASC`,
+    const people = await db.query<{
+      membership_id: string;
+      relationship_to_subject: string | null;
+      display_name: string | null;
+    }>(
+      `SELECT m.id AS membership_id, m.relationship_to_subject, u.display_name
+         FROM memberships m JOIN users u ON u.id = m.user_id
+        WHERE m.space_id = $1 ORDER BY m.created_at ASC`,
       [id]
     );
 
@@ -171,9 +180,7 @@ export function registerQuestionRoutes(app: FastifyInstance, db: Db): void {
       if (!isUuid(id)) return reply.code(404).send({ error: copy.notFound });
 
       const found = await db.query<QuestionRow>(
-        `SELECT id, space_id, membership_id, origin, topic, text, status,
-                parent_answer_id, created_at
-           FROM questions WHERE id = $1`,
+        `SELECT ${QUESTION_COLUMNS} FROM questions WHERE id = $1`,
         [id]
       );
       if (found.rows.length === 0) return reply.code(404).send({ error: copy.notFound });
@@ -188,9 +195,72 @@ export function registerQuestionRoutes(app: FastifyInstance, db: Db): void {
             SET status = $2,
                 resolved_at = CASE WHEN $2 = 'open' THEN NULL ELSE now() END
           WHERE id = $1
-        RETURNING id, space_id, membership_id, origin, topic, text, status,
-                  parent_answer_id, created_at`,
+        RETURNING ${QUESTION_COLUMNS}`,
         [id, status]
+      );
+      return reply.code(200).send(questionView(updated.rows[0]));
+    }
+  );
+
+  // Carry a question to a specific family member (or clear the routing).
+  // "We thought you might know" - family asking family, never a task assigned.
+  app.post(
+    "/questions/:id/route",
+    {
+      preHandler: requireAuth,
+      config: mutate,
+      schema: {
+        body: {
+          type: "object",
+          required: ["membership_id"],
+          additionalProperties: false,
+          properties: {
+            membership_id: { type: ["string", "null"], maxLength: 100 },
+          },
+        },
+      },
+    },
+    async (req, reply) => {
+      const { id } = req.params as { id: string };
+      if (!isUuid(id)) return reply.code(404).send({ error: copy.notFound });
+
+      const found = await db.query<QuestionRow>(
+        `SELECT ${QUESTION_COLUMNS} FROM questions WHERE id = $1`,
+        [id]
+      );
+      if (found.rows.length === 0) return reply.code(404).send({ error: copy.notFound });
+      const question = found.rows[0];
+
+      const membership = await membershipFor(db, req.user!.id, question.space_id);
+      if (!membership) return reply.code(403).send({ error: copy.forbidden });
+
+      // Only an open question can be routed or unrouted.
+      if (question.status !== "open") {
+        return reply.code(400).send({ error: copy.validation });
+      }
+
+      const { membership_id } = req.body as { membership_id: string | null };
+      if (membership_id !== null) {
+        if (!isUuid(membership_id)) {
+          return reply.code(400).send({ error: copy.validation });
+        }
+        // A routing target must be a member of the question's own space.
+        const target = await db.query(
+          "SELECT 1 FROM memberships WHERE id = $1 AND space_id = $2",
+          [membership_id, question.space_id]
+        );
+        if (target.rows.length === 0) {
+          return reply.code(400).send({ error: copy.validation });
+        }
+      }
+
+      const updated = await db.query<QuestionRow>(
+        `UPDATE questions
+            SET assigned_to = $2,
+                routed_at = CASE WHEN $2 IS NULL THEN NULL ELSE now() END
+          WHERE id = $1
+        RETURNING ${QUESTION_COLUMNS}`,
+        [id, membership_id]
       );
       return reply.code(200).send(questionView(updated.rows[0]));
     }
