@@ -127,6 +127,55 @@ describe("resolveLlmAccess", () => {
     await db.close();
   });
 
+  it("returns gateway for an invited guest (invite_id membership) when env is present", async () => {
+    const db = await createPgliteDb();
+    await runMigrations(db);
+    // A space, an invite, and a guest membership that carries the invite_id.
+    const owner = await db.query<{ id: string }>(
+      "INSERT INTO users (email) VALUES ('owner@example.com') RETURNING id"
+    );
+    const space = await db.query<{ id: string }>(
+      "INSERT INTO spaces (subject_name, created_by) VALUES ('Anne', $1) RETURNING id",
+      [owner.rows[0].id]
+    );
+    const invite = await db.query<{ id: string }>(
+      `INSERT INTO invites (space_id, created_by, token_hash, expires_at)
+       VALUES ($1, $2, 'hash-xyz', now() + interval '14 days') RETURNING id`,
+      [space.rows[0].id, owner.rows[0].id]
+    );
+    const guest = await db.query<{ id: string }>(
+      "INSERT INTO users (email, display_name) VALUES (NULL, 'Carol') RETURNING id"
+    );
+    await db.query(
+      `INSERT INTO memberships (space_id, user_id, role, invite_id)
+       VALUES ($1, $2, 'contributor', $3)`,
+      [space.rows[0].id, guest.rows[0].id, invite.rows[0].id]
+    );
+
+    const user: SessionUser = { id: guest.rows[0].id, email: null, display_name: "Carol" };
+    const withEnv = config({
+      llmGatewayUrl: "https://gateway.example/v1",
+      llmApiKey: "gw-key",
+      llmGatewayAllowEmails: [],
+    });
+    expect((await resolveLlmAccess(db, user, withEnv)).mode).toBe("gateway");
+
+    // Without gateway env, the invited guest is simply off.
+    const noEnv = config({ llmGatewayUrl: "", llmApiKey: "", llmGatewayAllowEmails: [] });
+    expect((await resolveLlmAccess(db, user, noEnv)).mode).toBe("off");
+
+    // BYOK still wins when present.
+    const sealed = encryptSecret("sk-guest-own", withEnv.llmCredSecret);
+    await db.query(
+      `INSERT INTO llm_credentials
+         (user_id, base_url, model, key_ciphertext, key_iv, key_tag, key_last4)
+       VALUES ($1,'https://api.openai.com/v1','gpt-4o-mini',$2,$3,$4,'-own')`,
+      [guest.rows[0].id, sealed.ciphertext, sealed.iv, sealed.tag]
+    );
+    expect((await resolveLlmAccess(db, user, withEnv)).mode).toBe("byok");
+    await db.close();
+  });
+
   it("returns off for an ordinary user with no key and no grant", async () => {
     const db = await createPgliteDb();
     await runMigrations(db);

@@ -256,8 +256,8 @@ export function registerQuestionRoutes(app: FastifyInstance, db: Db): void {
 
       const updated = await db.query<QuestionRow>(
         `UPDATE questions
-            SET assigned_to = $2,
-                routed_at = CASE WHEN $2 IS NULL THEN NULL ELSE now() END
+            SET assigned_to = $2::uuid,
+                routed_at = CASE WHEN $2::uuid IS NULL THEN NULL ELSE now() END
           WHERE id = $1
         RETURNING ${QUESTION_COLUMNS}`,
         [id, membership_id]

@@ -418,6 +418,263 @@ describe("interview loop", () => {
   });
 });
 
+describe("routing and sitting privacy across two members", () => {
+  let ctx: TestContext;
+  beforeAll(async () => {
+    ctx = await makeTestApp();
+  });
+  afterAll(async () => {
+    await ctx.app.close();
+    await ctx.db.close();
+  });
+
+  async function newSpace(cookie: string, name: string): Promise<string> {
+    const res = await ctx.app.inject({
+      method: "POST",
+      url: "/spaces",
+      headers: { cookie },
+      payload: { subject_name: name },
+    });
+    return res.json().id;
+  }
+  async function joinAs(
+    organizer: string,
+    spaceId: string,
+    who: { display_name: string; relationship_to_subject: string }
+  ): Promise<string> {
+    const invite = await ctx.app.inject({
+      method: "POST",
+      url: `/spaces/${spaceId}/invites`,
+      headers: { cookie: organizer },
+      payload: {},
+    });
+    const token = invite.json().url.split("/join/")[1];
+    const joined = await ctx.app.inject({
+      method: "POST",
+      url: `/invite/${token}/join`,
+      payload: who,
+    });
+    const c = joined.cookies.find((x) => x.name === "atl_session")!;
+    return `atl_session=${c.value}`;
+  }
+  async function startSession(cookie: string, spaceId: string): Promise<string> {
+    const res = await ctx.app.inject({
+      method: "POST",
+      url: `/spaces/${spaceId}/sessions`,
+      headers: { cookie },
+    });
+    return res.json().id;
+  }
+
+  it("a routed question appears first for the target, not for the other member, and resolves on answer", async () => {
+    const organizer = await signIn(ctx.app, "carry-org@example.com");
+    const spaceId = await newSpace(organizer, "Delia Munro");
+    const orgSession = await startSession(organizer, spaceId);
+    const relative = await joinAs(organizer, spaceId, {
+      display_name: "Carol",
+      relationship_to_subject: "sister",
+    });
+    const relSession = await startSession(relative, spaceId);
+
+    // Find the relative's membership and route a bank question to her.
+    const gap = await ctx.app.inject({
+      method: "GET",
+      url: `/spaces/${spaceId}/questions`,
+      headers: { cookie: organizer },
+    });
+    const carol = gap.json().people.find(
+      (p: { relationship_to_subject: string | null }) => p.relationship_to_subject === "sister"
+    );
+    const question = gap.json().questions[0];
+    const openBefore = gap.json().counts.open;
+
+    const routed = await ctx.app.inject({
+      method: "POST",
+      url: `/questions/${question.id}/route`,
+      headers: { cookie: organizer },
+      payload: { membership_id: carol.membership_id },
+    });
+    expect(routed.statusCode).toBe(200);
+
+    // The relative's sitting offers it first, flagged routed.
+    const relProgress = await ctx.app.inject({
+      method: "GET",
+      url: `/sessions/${relSession}`,
+      headers: { cookie: relative },
+    });
+    const relFollowups = relProgress.json().followups;
+    expect(relFollowups[0].id).toBe(question.id);
+    expect(relFollowups[0].routed).toBe(true);
+
+    // The organizer's own sitting does not carry it.
+    const orgProgress = await ctx.app.inject({
+      method: "GET",
+      url: `/sessions/${orgSession}`,
+      headers: { cookie: organizer },
+    });
+    expect(
+      orgProgress.json().followups.some((f: { id: string }) => f.id === question.id)
+    ).toBe(false);
+
+    // The relative answers it with question_id; it flips to answered and the
+    // shared open count drops.
+    const answer = await ctx.app.inject({
+      method: "POST",
+      url: `/sessions/${relSession}/answers`,
+      headers: { cookie: relative },
+      payload: {
+        bank_question_key: `routed:${question.id}`,
+        prompt_text: question.text,
+        topic: question.topic,
+        duration_ms: 3000,
+        question_id: question.id,
+      },
+    });
+    expect(answer.statusCode).toBe(201);
+
+    const row = await ctx.db.query<{ status: string; resolved_at: string | null }>(
+      "SELECT status, resolved_at FROM questions WHERE id = $1",
+      [question.id]
+    );
+    expect(row.rows[0].status).toBe("answered");
+    expect(row.rows[0].resolved_at).not.toBeNull();
+
+    const gapAfter = await ctx.app.inject({
+      method: "GET",
+      url: `/spaces/${spaceId}/questions`,
+      headers: { cookie: organizer },
+    });
+    expect(gapAfter.json().counts.open).toBe(openBefore - 1);
+  });
+
+  it("a follow-up routed away leaves its teller's queue", async () => {
+    const organizer = await signIn(ctx.app, "carry-away-org@example.com");
+    const spaceId = await newSpace(organizer, "Elias Wray");
+    const orgSession = await startSession(organizer, spaceId);
+    const relative = await joinAs(organizer, spaceId, {
+      display_name: "Sam",
+      relationship_to_subject: "nephew",
+    });
+    const relSession = await startSession(relative, spaceId);
+
+    // The organizer's own follow-up.
+    const orgMembership = await ctx.db.query<{ id: string }>(
+      `SELECT m.id FROM memberships m JOIN users u ON u.id = m.user_id
+        WHERE m.space_id = $1 AND u.email = 'carry-away-org@example.com'`,
+      [spaceId]
+    );
+    const follow = await ctx.db.query<{ id: string }>(
+      `INSERT INTO questions (space_id, membership_id, origin, topic, text, status)
+       VALUES ($1, $2, 'followup', 'everyday', 'What were his mornings like?', 'open')
+       RETURNING id`,
+      [spaceId, orgMembership.rows[0].id]
+    );
+    const followId = follow.rows[0].id;
+
+    // Before routing, it is in the organizer's queue.
+    const before = await ctx.app.inject({
+      method: "GET",
+      url: `/sessions/${orgSession}`,
+      headers: { cookie: organizer },
+    });
+    expect(before.json().followups.some((f: { id: string }) => f.id === followId)).toBe(true);
+
+    const relMembership = await ctx.db.query<{ id: string }>(
+      `SELECT m.id FROM memberships m JOIN users u ON u.id = m.user_id
+        WHERE m.space_id = $1 AND u.display_name = 'Sam'`,
+      [spaceId]
+    );
+    await ctx.app.inject({
+      method: "POST",
+      url: `/questions/${followId}/route`,
+      headers: { cookie: organizer },
+      payload: { membership_id: relMembership.rows[0].id },
+    });
+
+    // Now it left the organizer's queue and joined the relative's.
+    const after = await ctx.app.inject({
+      method: "GET",
+      url: `/sessions/${orgSession}`,
+      headers: { cookie: organizer },
+    });
+    expect(after.json().followups.some((f: { id: string }) => f.id === followId)).toBe(false);
+    const rel = await ctx.app.inject({
+      method: "GET",
+      url: `/sessions/${relSession}`,
+      headers: { cookie: relative },
+    });
+    expect(rel.json().followups.some((f: { id: string }) => f.id === followId)).toBe(true);
+  });
+
+  it("member B cannot read or touch member A's sitting or audio", async () => {
+    const memberA = await signIn(ctx.app, "priv-a@example.com");
+    const spaceId = await newSpace(memberA, "Frida Sol");
+    const sessionA = await startSession(memberA, spaceId);
+    const memberB = await joinAs(memberA, spaceId, {
+      display_name: "Bea",
+      relationship_to_subject: "cousin",
+    });
+
+    // A records an answer with audio.
+    const answer = await ctx.app.inject({
+      method: "POST",
+      url: `/sessions/${sessionA}/answers`,
+      headers: { cookie: memberA },
+      payload: {
+        bank_question_key: "beginnings-hometown",
+        prompt_text: "Where did they grow up?",
+        topic: "beginnings",
+        duration_ms: 3000,
+      },
+    });
+    const answerId = answer.json().id;
+    await ctx.app.inject({
+      method: "PUT",
+      url: `/answers/${answerId}/audio?mime=audio/webm`,
+      headers: { cookie: memberA, "content-type": "application/octet-stream" },
+      payload: Buffer.from([1, 2, 3, 4]),
+    });
+
+    // Every session/answer route is 403 for B, with the private-sitting message.
+    const cookieB = { cookie: memberB };
+    const octet = { cookie: memberB, "content-type": "application/octet-stream" };
+    const cases: [string, string, Record<string, string>, unknown?][] = [
+      ["GET", `/sessions/${sessionA}`, cookieB],
+      ["POST", `/sessions/${sessionA}/answers`, cookieB, {
+        bank_question_key: "x",
+        prompt_text: "x",
+        topic: "x",
+        duration_ms: 100,
+      }],
+      ["POST", `/sessions/${sessionA}/defer`, cookieB, { topic: "beginnings" }],
+      ["POST", `/sessions/${sessionA}/complete`, cookieB],
+      ["GET", `/answers/${answerId}/audio`, cookieB],
+      ["PUT", `/answers/${answerId}/audio?mime=audio/webm`, octet, Buffer.from([9])],
+      ["PATCH", `/answers/${answerId}`, cookieB, { transcript_status: "failed" }],
+      ["POST", `/answers/${answerId}/followups`, cookieB],
+    ];
+    for (const [method, url, headers, payload] of cases) {
+      const res = await ctx.app.inject({ method: method as never, url, headers, payload: payload as never });
+      expect(res.statusCode, `${method} ${url}`).toBe(403);
+      expect(res.json().error, `${method} ${url}`).toBe("Each sitting stays private to its teller.");
+    }
+
+    // A's own flows still work.
+    const own = await ctx.app.inject({
+      method: "GET",
+      url: `/sessions/${sessionA}`,
+      headers: { cookie: memberA },
+    });
+    expect(own.statusCode).toBe(200);
+    const ownAudio = await ctx.app.inject({
+      method: "GET",
+      url: `/answers/${answerId}/audio`,
+      headers: { cookie: memberA },
+    });
+    expect(ownAudio.statusCode).toBe(200);
+  });
+});
+
 describe("audio persists across a fresh app instance", () => {
   const dir = mkdtempSync(path.join(tmpdir(), "atl-audio-persist-"));
   afterAll(() => rmSync(dir, { recursive: true, force: true }));

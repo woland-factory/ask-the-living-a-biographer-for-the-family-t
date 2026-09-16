@@ -23,6 +23,42 @@ async function startSession(ctx: TestContext, cookie: string, spaceId: string): 
   return res.json().id;
 }
 
+/** Invite a relative into a space and return their session cookie. */
+async function inviteAndJoin(
+  ctx: TestContext,
+  organizer: string,
+  spaceId: string,
+  who: { display_name: string; relationship_to_subject: string }
+): Promise<string> {
+  const invite = await ctx.app.inject({
+    method: "POST",
+    url: `/spaces/${spaceId}/invites`,
+    headers: { cookie: organizer },
+    payload: {},
+  });
+  const token = invite.json().url.split("/join/")[1];
+  const joined = await ctx.app.inject({
+    method: "POST",
+    url: `/invite/${token}/join`,
+    payload: who,
+  });
+  const c = joined.cookies.find((x) => x.name === "atl_session")!;
+  return `atl_session=${c.value}`;
+}
+
+async function firstOpenQuestion(
+  ctx: TestContext,
+  cookie: string,
+  spaceId: string
+): Promise<{ id: string }> {
+  const list = await ctx.app.inject({
+    method: "GET",
+    url: `/spaces/${spaceId}/questions`,
+    headers: { cookie },
+  });
+  return list.json().questions[0];
+}
+
 describe("gap map questions", () => {
   let ctx: TestContext;
   beforeAll(async () => {
@@ -196,5 +232,153 @@ describe("gap map questions", () => {
       headers: { cookie: strangerCookie },
     });
     expect(missing.statusCode).toBe(404);
+  });
+});
+
+describe("question routing", () => {
+  let ctx: TestContext;
+  beforeAll(async () => {
+    ctx = await makeTestApp();
+  });
+  afterAll(async () => {
+    await ctx.app.close();
+    await ctx.db.close();
+  });
+
+  it("routes an open question to a member, re-routes, and clears it", async () => {
+    const organizer = await signIn(ctx.app, "route-org@example.com");
+    const spaceId = await createSpace(ctx, organizer, "Clara Innes");
+    await startSession(ctx, organizer, spaceId);
+    await inviteAndJoin(ctx, organizer, spaceId, {
+      display_name: "Carol",
+      relationship_to_subject: "sister",
+    });
+
+    // Two people now: pick the sister as the routing target.
+    const gap = await ctx.app.inject({
+      method: "GET",
+      url: `/spaces/${spaceId}/questions`,
+      headers: { cookie: organizer },
+    });
+    const people = gap.json().people;
+    expect(people.some((p: { display_name: string | null }) => p.display_name === "Carol")).toBe(true);
+    const carol = people.find(
+      (p: { relationship_to_subject: string | null }) => p.relationship_to_subject === "sister"
+    );
+    const question = gap.json().questions[0];
+
+    const routed = await ctx.app.inject({
+      method: "POST",
+      url: `/questions/${question.id}/route`,
+      headers: { cookie: organizer },
+      payload: { membership_id: carol.membership_id },
+    });
+    expect(routed.statusCode).toBe(200);
+    expect(routed.json().assigned_to).toBe(carol.membership_id);
+    const stamped = await ctx.db.query<{ routed_at: string | null }>(
+      "SELECT routed_at FROM questions WHERE id = $1",
+      [question.id]
+    );
+    expect(stamped.rows[0].routed_at).not.toBeNull();
+
+    // Clearing wipes both fields.
+    const cleared = await ctx.app.inject({
+      method: "POST",
+      url: `/questions/${question.id}/route`,
+      headers: { cookie: organizer },
+      payload: { membership_id: null },
+    });
+    expect(cleared.json().assigned_to).toBeNull();
+    const afterClear = await ctx.db.query<{ routed_at: string | null }>(
+      "SELECT routed_at FROM questions WHERE id = $1",
+      [question.id]
+    );
+    expect(afterClear.rows[0].routed_at).toBeNull();
+  });
+
+  it("rejects a membership from another space with 400", async () => {
+    const org = await signIn(ctx.app, "route-cross-a@example.com");
+    const spaceA = await createSpace(ctx, org, "Space A Person");
+    await startSession(ctx, org, spaceA);
+
+    const otherOrg = await signIn(ctx.app, "route-cross-b@example.com");
+    const spaceB = await createSpace(ctx, otherOrg, "Space B Person");
+    await startSession(ctx, otherOrg, spaceB);
+    const bGap = await ctx.app.inject({
+      method: "GET",
+      url: `/spaces/${spaceB}/questions`,
+      headers: { cookie: otherOrg },
+    });
+    const bMembership = bGap.json().people[0].membership_id;
+
+    const aQuestion = await firstOpenQuestion(ctx, org, spaceA);
+    const res = await ctx.app.inject({
+      method: "POST",
+      url: `/questions/${aQuestion.id}/route`,
+      headers: { cookie: org },
+      payload: { membership_id: bMembership },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("refuses to route a resolved question, and guards non-members and unknown ids", async () => {
+    const org = await signIn(ctx.app, "route-status@example.com");
+    const spaceId = await createSpace(ctx, org, "Held Person");
+    const sessionId = await startSession(ctx, org, spaceId);
+    const question = await firstOpenQuestion(ctx, org, spaceId);
+
+    // Resolve it, then routing is 400.
+    await ctx.app.inject({
+      method: "PATCH",
+      url: `/questions/${question.id}`,
+      headers: { cookie: org },
+      payload: { status: "deferred" },
+    });
+    const resolved = await ctx.app.inject({
+      method: "POST",
+      url: `/questions/${question.id}/route`,
+      headers: { cookie: org },
+      payload: { membership_id: null },
+    });
+    expect(resolved.statusCode).toBe(400);
+
+    const stranger = await signIn(ctx.app, "route-stranger@example.com");
+    const another = await firstOpenQuestion(ctx, org, spaceId);
+    const forbidden = await ctx.app.inject({
+      method: "POST",
+      url: `/questions/${another.id}/route`,
+      headers: { cookie: stranger },
+      payload: { membership_id: null },
+    });
+    expect(forbidden.statusCode).toBe(403);
+
+    const unknown = await ctx.app.inject({
+      method: "POST",
+      url: `/questions/00000000-0000-0000-0000-000000000000/route`,
+      headers: { cookie: org },
+      payload: { membership_id: null },
+    });
+    expect(unknown.statusCode).toBe(404);
+    expect(sessionId).toBeTruthy();
+  });
+
+  it("returns assigned_to per question and display_name per person, never an email", async () => {
+    const org = await signIn(ctx.app, "route-view@example.com");
+    const spaceId = await createSpace(ctx, org, "Viewed Person");
+    await startSession(ctx, org, spaceId);
+    await inviteAndJoin(ctx, org, spaceId, {
+      display_name: "Sam",
+      relationship_to_subject: "nephew",
+    });
+
+    const gap = await ctx.app.inject({
+      method: "GET",
+      url: `/spaces/${spaceId}/questions`,
+      headers: { cookie: org },
+    });
+    const body = gap.json();
+    expect(body.questions[0]).toHaveProperty("assigned_to");
+    expect(body.people.every((p: Record<string, unknown>) => "display_name" in p)).toBe(true);
+    expect(JSON.stringify(body)).not.toContain("@");
   });
 });
