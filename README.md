@@ -38,6 +38,17 @@ at feelings or blame. When nothing kind fits, the app stays quiet.
 
 Each space also keeps a **gap map**: every open question about the person, who
 it belongs to, and what the family has answered, deferred, or chosen to let go.
+From the gap map you can send an open question to a specific relative. It waits
+at the top of their next sitting, framed as family wondering together, and
+resolves on the shared map once they answer.
+
+## Inviting family
+
+An organizer invites one relative at a time with **Invite family**. Each link is
+for one person, works once, and expires after 14 days. The organizer sends the
+link themselves. A relative who opens it gives just their name and their
+relationship to the person, then goes straight into the interview. They never
+need an account or a key, and each person's raw recordings stay private to them.
 
 ## What's inside
 
@@ -49,7 +60,7 @@ it belongs to, and what the family has answered, deferred, or chosen to let go.
 - **shared/**: `bank.json`, the curated question bank, imported by the frontend
   and read by the backend so the two never drift.
 - **e2e/**: Playwright tests for sign-in, creating a space, the interview,
-  settings, and the gap map.
+  settings, the gap map, and inviting a relative.
 
 Data lives in PostgreSQL. In production the API talks to Postgres directly; the
 test suite uses an in-process Postgres so it needs no database of its own.
