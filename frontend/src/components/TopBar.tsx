@@ -15,7 +15,7 @@ export function TopBar() {
       <Link to="/" className="brand">
         Ask the Living
       </Link>
-      {user && (
+      {user && user.email !== null && (
         <nav className="topbar-nav">
           <Link className="btn btn-quiet" to="/settings">
             Settings

@@ -8,6 +8,7 @@ import { SpaceDetail } from "./pages/SpaceDetail";
 import { Interview } from "./pages/Interview";
 import { Settings } from "./pages/Settings";
 import { GapMap } from "./pages/GapMap";
+import { Join } from "./pages/Join";
 
 export function App() {
   const { user, loading } = useAuth();
@@ -66,13 +67,18 @@ export function App() {
           )
         }
       />
+      {/* The join page is public: a signed-in user may be joining a second
+          family space, and a first-time visitor arrives without an account. */}
+      <Route path="/join/:token" element={<Join />} />
       <Route
         path="/settings"
         element={
           loading ? (
             <AppShellLoading />
-          ) : user ? (
+          ) : user && user.email !== null ? (
             <Settings />
+          ) : user ? (
+            <Navigate to="/" replace />
           ) : (
             <Navigate to="/signin" replace />
           )

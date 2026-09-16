@@ -357,6 +357,34 @@ a { color: var(--sage); }
 }
 .gap-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
 .gap-status-note { color: var(--muted); font-size: 0.9rem; margin-right: auto; }
+.gap-sent {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: var(--sage-ink);
+  background: var(--sage);
+  border-radius: 999px;
+  padding: 0.1rem 0.5rem;
+}
+.gap-route { width: 100%; align-items: flex-end; }
+.gap-route .field { margin-bottom: 0; }
+
+.invite-panel { text-align: left; }
+.invite-created .hint { display: block; margin-top: 0.4rem; }
+.invite-list { list-style: none; margin: 0.5rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+.invite-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--line, #e5e2da);
+  border-radius: 10px;
+}
+.invite-label { font-weight: 600; }
+.invite-status { color: var(--muted); font-size: 0.85rem; }
+.invite-status.invite-joined { color: var(--sage-ink); }
 
 .interview-followup { border-color: #d5e2d6; }
 .followup-label { color: var(--sage); }

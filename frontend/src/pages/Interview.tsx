@@ -142,7 +142,9 @@ export function Interview() {
             topic: current.question.topic,
           }
         : {
-            bank_question_key: `followup:${current.followup.id}`,
+            bank_question_key: current.followup.routed
+              ? `routed:${current.followup.id}`
+              : `followup:${current.followup.id}`,
             prompt_text: current.followup.text,
             topic: current.followup.topic,
             question_id: current.followup.id,
@@ -260,7 +262,9 @@ export function Interview() {
             >
               {current.kind === "followup" ? (
                 <p className="topic-label followup-label">
-                  A question your telling opened
+                  {current.followup.routed
+                    ? "Your family thought you might know"
+                    : "A question your telling opened"}
                 </p>
               ) : (
                 <p className="topic-label">{topicLabel(current.question.topic)}</p>
@@ -283,7 +287,7 @@ export function Interview() {
                 <div className="quiet-actions">
                   {current.kind === "followup" ? (
                     <button className="btn btn-quiet" type="button" onClick={keepOnMap}>
-                      Keep it on the map
+                      {current.followup.routed ? "Leave it for now" : "Keep it on the map"}
                     </button>
                   ) : (
                     <button className="btn btn-quiet" type="button" onClick={defer}>

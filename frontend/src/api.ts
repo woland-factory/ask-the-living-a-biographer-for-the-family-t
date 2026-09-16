@@ -51,7 +51,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export interface Me {
   id: string;
-  email: string;
+  email: string | null;
   display_name: string | null;
 }
 
@@ -89,6 +89,7 @@ export interface Followup {
   id: string;
   text: string;
   topic: string;
+  routed: boolean;
 }
 
 export interface SessionProgress {
@@ -119,6 +120,7 @@ export interface Question {
   status: QuestionStatus;
   membership_id: string | null;
   parent_answer_id: string | null;
+  assigned_to: string | null;
   created_at: string;
 }
 
@@ -133,6 +135,33 @@ export interface QuestionCounts {
 export interface Person {
   membership_id: string;
   relationship_to_subject: string | null;
+  display_name: string | null;
+}
+
+export interface Invite {
+  id: string;
+  label: string | null;
+  status: "pending" | "joined" | "expired";
+  expires_at: string;
+  created_at: string;
+  joined: {
+    display_name: string | null;
+    relationship_to_subject: string | null;
+  } | null;
+}
+
+export interface CreatedInvite {
+  id: string;
+  url: string;
+  label: string | null;
+  status: "pending";
+  expires_at: string;
+  created_at: string;
+}
+
+export interface InvitePreview {
+  status: "ready" | "used" | "expired";
+  subject_name?: string;
 }
 
 export interface GapMap {
@@ -284,4 +313,27 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify({ status }),
     }),
+  routeQuestion: (questionId: string, membershipId: string | null) =>
+    request<Question>(`/questions/${questionId}/route`, {
+      method: "POST",
+      body: JSON.stringify({ membership_id: membershipId }),
+    }),
+
+  createInvite: (spaceId: string, label?: string) =>
+    request<CreatedInvite>(`/spaces/${spaceId}/invites`, {
+      method: "POST",
+      body: JSON.stringify(label ? { label } : {}),
+    }),
+  listInvites: (spaceId: string) =>
+    request<{ invites: Invite[] }>(`/spaces/${spaceId}/invites`),
+  previewInvite: (token: string) =>
+    request<InvitePreview>(`/invite/${encodeURIComponent(token)}`),
+  joinInvite: (
+    token: string,
+    input: { display_name: string; relationship_to_subject: string }
+  ) =>
+    request<{ space_id: string; already_member?: boolean }>(
+      `/invite/${encodeURIComponent(token)}/join`,
+      { method: "POST", body: JSON.stringify(input) }
+    ),
 };

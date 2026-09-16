@@ -36,7 +36,7 @@ interface Filters {
 function personName(people: Person[], membershipId: string | null): string {
   if (!membershipId) return "For anyone";
   const p = people.find((x) => x.membership_id === membershipId);
-  return p?.relationship_to_subject || "A family member";
+  return p?.display_name || p?.relationship_to_subject || "A family member";
 }
 
 export function GapMap() {
@@ -90,6 +90,25 @@ export function GapMap() {
     [view, load]
   );
 
+  const route = useCallback(
+    async (question: Question, membershipId: string | null) => {
+      if (view.kind !== "ready") return;
+      const prev = view.data;
+      // Optimistic: show the new assignment within 100ms, then reconcile.
+      const questions = prev.questions.map((q) =>
+        q.id === question.id ? { ...q, assigned_to: membershipId } : q
+      );
+      setView({ kind: "ready", data: { ...prev, questions } });
+      try {
+        await api.routeQuestion(question.id, membershipId);
+      } catch {
+        // Fall back to the server's truth if the write did not land.
+      }
+      await load();
+    },
+    [view, load]
+  );
+
   return (
     <>
       <TopBar />
@@ -125,6 +144,7 @@ export function GapMap() {
             filters={filters}
             onFilters={setFilters}
             onResolve={resolve}
+            onRoute={route}
           />
         )}
       </main>
@@ -138,12 +158,14 @@ function GapReady({
   filters,
   onFilters,
   onResolve,
+  onRoute,
 }: {
   spaceId: string;
   data: GapMapData;
   filters: Filters;
   onFilters: (f: Filters) => void;
   onResolve: (q: Question, next: QuestionStatus) => void;
+  onRoute: (q: Question, membershipId: string | null) => void;
 }) {
   const open = data.counts.open;
   const openLabel = open === 0 ? "All caught up for now" : `${open} still open`;
@@ -153,7 +175,7 @@ function GapReady({
     () =>
       data.people.map((p) => ({
         value: p.membership_id,
-        label: p.relationship_to_subject || "A family member",
+        label: p.display_name || p.relationship_to_subject || "A family member",
       })),
     [data.people]
   );
@@ -247,7 +269,9 @@ function GapReady({
               key={q.id}
               question={q}
               people={data.people}
+              personOptions={personOptions}
               onResolve={onResolve}
+              onRoute={onRoute}
             />
           ))}
         </ul>
@@ -263,13 +287,30 @@ function GapReady({
 function GapItem({
   question,
   people,
+  personOptions,
   onResolve,
+  onRoute,
 }: {
   question: Question;
   people: Person[];
+  personOptions: { value: string; label: string }[];
   onResolve: (q: Question, next: QuestionStatus) => void;
+  onRoute: (q: Question, membershipId: string | null) => void;
 }) {
   const label = topicLabel(question.topic) || question.topic;
+  const [routing, setRouting] = useState(false);
+  const [pick, setPick] = useState("");
+  const sentTo = question.assigned_to
+    ? personName(people, question.assigned_to)
+    : null;
+
+  const send = () => {
+    if (!pick) return;
+    onRoute(question, pick);
+    setRouting(false);
+    setPick("");
+  };
+
   return (
     <li className={`gap-item gap-${question.status}`}>
       <div className="gap-item-meta">
@@ -278,6 +319,7 @@ function GapItem({
           <span className="gap-tag">Follow-up</span>
         )}
         <span className="gap-person">{personName(people, question.membership_id)}</span>
+        {sentTo && <span className="gap-sent">Sent to {sentTo}</span>}
       </div>
       <p className="gap-text">{question.text}</p>
       {question.status === "open" ? (
@@ -303,6 +345,53 @@ function GapItem({
           >
             Lost with them
           </button>
+          {routing ? (
+            <div className="row gap-route">
+              <label className="field">
+                Send to
+                <select
+                  className="input"
+                  value={pick}
+                  onChange={(e) => setPick(e.target.value)}
+                  aria-label="Choose a family member"
+                >
+                  <option value="">Choose someone</option>
+                  {personOptions.map((p) => (
+                    <option key={p.value} value={p.value}>
+                      {p.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button
+                className="btn btn-primary"
+                type="button"
+                onClick={send}
+                disabled={!pick}
+              >
+                Send
+              </button>
+            </div>
+          ) : (
+            <>
+              <button
+                className="btn btn-quiet"
+                type="button"
+                onClick={() => setRouting(true)}
+              >
+                {sentTo ? "Send to someone else" : "Send to someone"}
+              </button>
+              {sentTo && (
+                <button
+                  className="btn btn-quiet"
+                  type="button"
+                  onClick={() => onRoute(question, null)}
+                >
+                  Keep for anyone
+                </button>
+              )}
+            </>
+          )}
         </div>
       ) : (
         <div className="gap-actions">
