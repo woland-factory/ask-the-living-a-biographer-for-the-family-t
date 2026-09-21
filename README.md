@@ -42,6 +42,23 @@ From the gap map you can send an open question to a specific relative. It waits
 at the top of their next sitting, framed as family wondering together, and
 resolves on the shared map once they answer.
 
+## Tellings side by side
+
+When two people tell the same story, the app places their tellings next to each
+other, each shown verbatim, never merged into one summary. The disagreements are
+kept: that is the honest record. On the **Stories** page you group tellings by
+hand. Create a story, choose a telling, and add it. When a second person's
+telling joins the same story, open it to see the two accounts side by side.
+
+With a model key, the app also asks each teller the single gentle question the
+other's telling left open, through the same restraint guardrail as the
+follow-ups. That question lands on the teller's next sitting. Without a key, you
+still group tellings by hand and see them side by side. A person sees another's
+raw telling only after adding their own telling of that story.
+
+Signed out, **See how it works** on the landing page opens a small read-only
+example: one remembered person, two relatives, and the side-by-side moment.
+
 ## Inviting family
 
 An organizer invites one relative at a time with **Invite family**. Each link is
@@ -60,7 +77,7 @@ need an account or a key, and each person's raw recordings stay private to them.
 - **shared/**: `bank.json`, the curated question bank, imported by the frontend
   and read by the backend so the two never drift.
 - **e2e/**: Playwright tests for sign-in, creating a space, the interview,
-  settings, the gap map, and inviting a relative.
+  settings, the gap map, inviting a relative, and the side-by-side tellings.
 
 Data lives in PostgreSQL. In production the API talks to Postgres directly; the
 test suite uses an in-process Postgres so it needs no database of its own.

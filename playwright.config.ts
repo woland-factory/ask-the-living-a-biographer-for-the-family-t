@@ -40,6 +40,8 @@ export default defineConfig({
       PUBLIC_BASE_URL: baseURL,
       SESSION_SECRET: "e2e-secret-for-signing-cookies-please-change-1234",
       MAGIC_LINK_TTL_MIN: "15",
+      // Seed the demo family so the public /demo bridge has its example.
+      SEED_DEMO: "1",
     },
   },
   projects: [{ name: "desktop", use: { ...devices["Desktop Chrome"] } }],
