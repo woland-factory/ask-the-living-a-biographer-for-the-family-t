@@ -11,4 +11,5 @@ export const copy = {
   tooLarge: "That recording is too large to save. Try a shorter one.",
   inviteGone: "That invite link was already used or has expired. Ask your family to send a fresh one.",
   sittingPrivate: "Each sitting stays private to its teller.",
+  storyPrivate: "This story opens once you've added your own telling.",
 };

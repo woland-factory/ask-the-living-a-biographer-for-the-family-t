@@ -16,6 +16,7 @@ describe("migration runner", () => {
     expect(first).toContain("0002_interview.sql");
     expect(first).toContain("0003_followups.sql");
     expect(first).toContain("0004_invites.sql");
+    expect(first).toContain("0005_tellings.sql");
 
     const tables = await db.query<{ table_name: string }>(
       `SELECT table_name FROM information_schema.tables
@@ -35,9 +36,44 @@ describe("migration runner", () => {
       "llm_credentials",
       "questions",
       "invites",
+      "stories",
     ]) {
       expect(names).toContain(t);
     }
+
+    // The origin CHECK now admits the cross-telling question.
+    await db.query(
+      "INSERT INTO users (email, display_name) VALUES ('m-origin@example.com', 'M')"
+    );
+    const owner = await db.query<{ id: string }>(
+      "SELECT id FROM users WHERE email = 'm-origin@example.com'"
+    );
+    const space = await db.query<{ id: string }>(
+      `INSERT INTO spaces (subject_name, created_by) VALUES ('Rosa', $1) RETURNING id`,
+      [owner.rows[0].id]
+    );
+    const membership = await db.query<{ id: string }>(
+      `INSERT INTO memberships (space_id, user_id, role)
+       VALUES ($1, $2, 'organizer') RETURNING id`,
+      [space.rows[0].id, owner.rows[0].id]
+    );
+    const story = await db.query<{ id: string }>(
+      `INSERT INTO stories (space_id, label) VALUES ($1, 'A story') RETURNING id`,
+      [space.rows[0].id]
+    );
+    await db.query(
+      `INSERT INTO questions (space_id, membership_id, origin, topic, text, story_id, status)
+       VALUES ($1, $2, 'crosstelling', 'everyday', 'A gentle question?', $3, 'open')`,
+      [space.rows[0].id, membership.rows[0].id, story.rows[0].id]
+    );
+    // The partial unique index allows only one OPEN crosstelling per teller.
+    await expect(
+      db.query(
+        `INSERT INTO questions (space_id, membership_id, origin, topic, text, story_id, status)
+         VALUES ($1, $2, 'crosstelling', 'everyday', 'Another one?', $3, 'open')`,
+        [space.rows[0].id, membership.rows[0].id, story.rows[0].id]
+      )
+    ).rejects.toThrow();
 
     // Re-running applies nothing new.
     const second = await runMigrations(db);

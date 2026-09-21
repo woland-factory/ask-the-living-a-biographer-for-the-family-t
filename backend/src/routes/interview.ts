@@ -236,22 +236,26 @@ export function registerInterviewRoutes(
           LIMIT ${ANSWERS_LIST_LIMIT}`,
         [session.id]
       );
-      // Everything open for this member: their own follow-ups, plus anything
-      // routed to them. A question routed away leaves the teller's queue and
-      // joins the target's. Routed items sort first: a question your family
-      // sent you is the first thing your next sitting offers.
+      // Everything open for this member: their own follow-ups, the cross-telling
+      // question another teller's version opened for them, plus anything routed
+      // to them. A question routed away leaves the teller's queue and joins the
+      // target's. Routed items sort first: a question your family sent you is
+      // the first thing your next sitting offers.
       const followups = await db.query<{
         id: string;
         text: string;
         topic: string;
+        origin: string;
         routed: boolean;
       }>(
-        `SELECT q.id, q.text, q.topic,
+        `SELECT q.id, q.text, q.topic, q.origin,
                 (q.assigned_to IS NOT NULL) AS routed
            FROM questions q
           WHERE q.space_id = $1 AND q.status = 'open'
             AND (q.assigned_to = $2
                  OR (q.assigned_to IS NULL AND q.origin = 'followup'
+                     AND q.membership_id = $2)
+                 OR (q.assigned_to IS NULL AND q.origin = 'crosstelling'
                      AND q.membership_id = $2))
           ORDER BY (q.assigned_to IS NOT NULL) DESC, q.created_at DESC`,
         [session.space_id, session.membership_id]
