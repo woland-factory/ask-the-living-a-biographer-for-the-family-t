@@ -144,7 +144,7 @@ export function Interview() {
         : {
             bank_question_key: current.followup.routed
               ? `routed:${current.followup.id}`
-              : `followup:${current.followup.id}`,
+              : `${current.followup.origin ?? "followup"}:${current.followup.id}`,
             prompt_text: current.followup.text,
             topic: current.followup.topic,
             question_id: current.followup.id,
@@ -264,7 +264,9 @@ export function Interview() {
                 <p className="topic-label followup-label">
                   {current.followup.routed
                     ? "Your family thought you might know"
-                    : "A question your telling opened"}
+                    : current.followup.origin === "crosstelling"
+                      ? "A question the other telling opened"
+                      : "A question your telling opened"}
                 </p>
               ) : (
                 <p className="topic-label">{topicLabel(current.question.topic)}</p>

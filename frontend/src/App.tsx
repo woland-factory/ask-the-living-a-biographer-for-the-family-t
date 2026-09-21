@@ -9,6 +9,9 @@ import { Interview } from "./pages/Interview";
 import { Settings } from "./pages/Settings";
 import { GapMap } from "./pages/GapMap";
 import { Join } from "./pages/Join";
+import { Stories } from "./pages/Stories";
+import { SideBySide } from "./pages/SideBySide";
+import { Demo } from "./pages/Demo";
 
 export function App() {
   const { user, loading } = useAuth();
@@ -67,9 +70,34 @@ export function App() {
           )
         }
       />
-      {/* The join page is public: a signed-in user may be joining a second
-          family space, and a first-time visitor arrives without an account. */}
+      <Route
+        path="/space/:id/stories"
+        element={
+          loading ? (
+            <AppShellLoading />
+          ) : user ? (
+            <Stories />
+          ) : (
+            <Navigate to="/signin" replace />
+          )
+        }
+      />
+      <Route
+        path="/space/:id/story/:sid"
+        element={
+          loading ? (
+            <AppShellLoading />
+          ) : user ? (
+            <SideBySide />
+          ) : (
+            <Navigate to="/signin" replace />
+          )
+        }
+      />
+      {/* The join and demo pages are public: a first-time visitor arrives
+          without an account. */}
       <Route path="/join/:token" element={<Join />} />
+      <Route path="/demo" element={<Demo />} />
       <Route
         path="/settings"
         element={

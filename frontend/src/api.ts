@@ -85,11 +85,14 @@ export interface AnswerSummary {
   created_at: string;
 }
 
+export type FollowupOrigin = "followup" | "crosstelling";
+
 export interface Followup {
   id: string;
   text: string;
   topic: string;
   routed: boolean;
+  origin?: FollowupOrigin;
 }
 
 export interface SessionProgress {
@@ -110,7 +113,7 @@ export interface LlmCredential {
 }
 
 export type QuestionStatus = "open" | "answered" | "deferred" | "lost";
-export type QuestionOrigin = "bank" | "followup";
+export type QuestionOrigin = "bank" | "followup" | "crosstelling";
 
 export interface Question {
   id: string;
@@ -175,6 +178,78 @@ export interface QuestionFilters {
   status?: QuestionStatus;
   topic?: string;
   membership_id?: string;
+}
+
+// A grouping candidate: one of the caller's own answers, or (for the organizer)
+// another member's safe metadata. Never another member's transcript.
+export interface Telling {
+  answer_id: string;
+  membership_id: string;
+  relationship_to_subject: string | null;
+  display_name: string | null;
+  topic: string;
+  prompt_text: string;
+  story_id: string | null;
+  transcript_status: TranscriptStatus;
+  created_at: string;
+  is_own: boolean;
+}
+
+export interface StorySummary {
+  id: string;
+  label: string;
+  teller_count: number;
+  ready: boolean;
+  created_at: string;
+}
+
+export interface CreatedStory {
+  id: string;
+  label: string;
+  created_at: string;
+}
+
+export interface CrossQuestion {
+  id: string;
+  text: string;
+  topic: string;
+}
+
+export interface TellingAnswer {
+  id: string;
+  topic: string;
+  prompt_text: string;
+  transcript: string | null;
+  transcript_status: TranscriptStatus;
+  duration_ms: number;
+  has_audio: boolean;
+  audio_url: string | null;
+  created_at: string;
+}
+
+export interface TellingColumn {
+  membership_id: string;
+  relationship_to_subject: string | null;
+  display_name: string | null;
+  answers: TellingAnswer[];
+  open_question: CrossQuestion | null;
+}
+
+export interface SideBySide {
+  story: { id: string; label: string; created_at: string };
+  tellings: TellingColumn[];
+}
+
+export interface StorySuggestions {
+  mode: string;
+  suggestions: { story_id: string; label: string }[];
+  suggested_label: string | null;
+}
+
+export interface TagResult {
+  answer_id: string;
+  story_id: string | null;
+  generated: number;
 }
 
 export const api = {
@@ -336,4 +411,26 @@ export const api = {
       `/invite/${encodeURIComponent(token)}/join`,
       { method: "POST", body: JSON.stringify(input) }
     ),
+
+  getTellings: (spaceId: string) =>
+    request<{ tellings: Telling[] }>(`/spaces/${spaceId}/tellings`),
+  createStory: (spaceId: string, label: string) =>
+    request<CreatedStory>(`/spaces/${spaceId}/stories`, {
+      method: "POST",
+      body: JSON.stringify({ label }),
+    }),
+  tagAnswerStory: (answerId: string, storyId: string | null) =>
+    request<TagResult>(`/answers/${answerId}/story`, {
+      method: "POST",
+      body: JSON.stringify({ story_id: storyId }),
+    }),
+  suggestStory: (answerId: string) =>
+    request<StorySuggestions>(`/answers/${answerId}/story-suggestions`, {
+      method: "POST",
+    }),
+  listStories: (spaceId: string) =>
+    request<{ stories: StorySummary[] }>(`/spaces/${spaceId}/stories`),
+  getStory: (spaceId: string, storyId: string) =>
+    request<SideBySide>(`/spaces/${spaceId}/stories/${storyId}`),
+  getDemoStory: () => request<SideBySide>("/demo/story"),
 };

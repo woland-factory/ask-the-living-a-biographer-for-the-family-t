@@ -15,6 +15,9 @@ export function Landing() {
           <Link className="btn btn-primary" to="/signin">
             Create a space
           </Link>
+          <p className="hero-secondary">
+            <Link to="/demo">See how it works</Link>
+          </p>
         </section>
       </main>
       <p className="footer-note">

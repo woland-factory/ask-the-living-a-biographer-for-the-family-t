@@ -79,6 +79,12 @@ export function SpaceDetail() {
             >
               What's still open
             </Link>
+            <Link
+              className="btn btn-quiet btn-block"
+              to={`/space/${view.space.id}/stories`}
+            >
+              See tellings side by side
+            </Link>
             {view.space.role === "organizer" && (
               <InvitePanel spaceId={view.space.id} />
             )}
