@@ -67,6 +67,27 @@ link themselves. A relative who opens it gives just their name and their
 relationship to the person, then goes straight into the interview. They never
 need an account or a key, and each person's raw recordings stay private to them.
 
+## Keeping everything (export)
+
+The organizer can download the whole space from the space home with **Download
+everything**. It streams a single ZIP that holds the original audio recordings,
+the transcripts as plain text and as JSON, the story structure, and the gap map
+with its answered, deferred, and "lost with them" questions. The formats are
+open, so the archive opens on any computer with no special software and no
+account, and it keeps working after the app is gone.
+
+Inside the ZIP:
+
+- `README.txt`: what the archive is and where to look first.
+- `manifest.json`: a short index with counts and every file path.
+- `space.json`: the full record. People, sessions, answers with their
+  transcripts, stories, and every question.
+- `audio/`: the original voice recordings, one folder per person.
+- `transcripts/`: the words of each recording, as plain text.
+
+Export is the organizer's custodial download. A relative cannot export another
+relative's private recordings, and the endpoint enforces that server-side.
+
 ## What's inside
 
 - **backend/**: a Fastify API (TypeScript) that also serves the web app. It
@@ -77,7 +98,8 @@ need an account or a key, and each person's raw recordings stay private to them.
 - **shared/**: `bank.json`, the curated question bank, imported by the frontend
   and read by the backend so the two never drift.
 - **e2e/**: Playwright tests for sign-in, creating a space, the interview,
-  settings, the gap map, inviting a relative, and the side-by-side tellings.
+  settings, the gap map, inviting a relative, the side-by-side tellings, and the
+  whole-space export.
 
 Data lives in PostgreSQL. In production the API talks to Postgres directly; the
 test suite uses an in-process Postgres so it needs no database of its own.
