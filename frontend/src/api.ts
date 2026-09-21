@@ -433,4 +433,53 @@ export const api = {
   getStory: (spaceId: string, storyId: string) =>
     request<SideBySide>(`/spaces/${spaceId}/stories/${storyId}`),
   getDemoStory: () => request<SideBySide>("/demo/story"),
+
+  // Download the whole-space archive as a Blob. Organizer-only server-side.
+  // Follows fetchAudio's raw-fetch blob pattern rather than the JSON helper.
+  exportSpace: async (
+    spaceId: string
+  ): Promise<{ blob: Blob; filename: string }> => {
+    let res: Response;
+    try {
+      res = await fetch(`/spaces/${spaceId}/export`, {
+        credentials: "same-origin",
+      });
+    } catch {
+      throw new ApiError(0, GENERIC);
+    }
+    if (!res.ok) {
+      let message = GENERIC;
+      const text = await res.text();
+      if (text) {
+        try {
+          const body = JSON.parse(text);
+          if (body && typeof body === "object" && "error" in body) {
+            message = String((body as { error: unknown }).error) || GENERIC;
+          }
+        } catch {
+          /* keep generic */
+        }
+      }
+      throw new ApiError(res.status, message);
+    }
+    const blob = await res.blob();
+    return { blob, filename: exportFilename(res, spaceId) };
+  },
 };
+
+// Prefer the server's Content-Disposition filename; fall back to a dated name.
+function exportFilename(res: Response, spaceId: string): string {
+  const disposition = res.headers.get("Content-Disposition") ?? "";
+  const star = /filename\*=UTF-8''([^;]+)/i.exec(disposition);
+  if (star) {
+    try {
+      return decodeURIComponent(star[1]);
+    } catch {
+      /* fall through */
+    }
+  }
+  const plain = /filename="?([^";]+)"?/i.exec(disposition);
+  if (plain) return plain[1];
+  const date = new Date().toISOString().slice(0, 10);
+  return `ask-the-living-${spaceId.slice(0, 8)}-${date}.zip`;
+}

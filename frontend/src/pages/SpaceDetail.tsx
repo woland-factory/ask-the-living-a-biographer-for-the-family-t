@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { TopBar } from "../components/TopBar";
 import { AppShellLoading } from "../components/Loading";
 import { api, ApiError, type CreatedInvite, type Invite, type Space } from "../api";
+import { ExportPanel } from "../components/ExportPanel";
 import { formatYears } from "../format";
 
 type View =
@@ -87,6 +88,9 @@ export function SpaceDetail() {
             </Link>
             {view.space.role === "organizer" && (
               <InvitePanel spaceId={view.space.id} />
+            )}
+            {view.space.role === "organizer" && (
+              <ExportPanel spaceId={view.space.id} />
             )}
             <Link className="btn btn-quiet" to="/">
               Back to your spaces

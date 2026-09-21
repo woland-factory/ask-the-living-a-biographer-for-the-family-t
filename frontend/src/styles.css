@@ -481,3 +481,18 @@ a { color: var(--sage); }
   .hero { padding-top: 5rem; }
   .hero h1 { font-size: 2.5rem; }
 }
+
+/* Export */
+.export-panel { gap: 0.4rem; }
+.export-hint { margin: 0; }
+.export-busy { display: inline-flex; align-items: center; gap: 0.5rem; }
+.export-dot {
+  width: 10px; height: 10px; border-radius: 50%;
+  background: currentColor;
+  animation: pulse 1.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .export-dot { animation: none; }
+}
+.export-done { padding: 1.25rem 0 0.5rem; }
+.export-done-text { margin: 0.25rem 0 0; }

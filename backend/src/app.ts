@@ -21,6 +21,7 @@ import { registerSettingsRoutes } from "./routes/settings.js";
 import { registerQuestionRoutes } from "./routes/questions.js";
 import { registerInviteRoutes } from "./routes/invites.js";
 import { registerStoryRoutes } from "./routes/stories.js";
+import { registerExportRoutes } from "./routes/export.js";
 import type { ChatFn } from "./lib/llm.js";
 import "./types.js";
 
@@ -114,6 +115,7 @@ export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> 
   registerQuestionRoutes(app, db);
   registerInviteRoutes(app, { db, config });
   registerStoryRoutes(app, db, { config, chat: opts.llm?.chat });
+  registerExportRoutes(app, db);
 
   // Serve the built SPA and provide a same-origin fallback for client routes.
   const staticDir = resolveStaticDir(config);

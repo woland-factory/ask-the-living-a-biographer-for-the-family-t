@@ -12,4 +12,5 @@ export const copy = {
   inviteGone: "That invite link was already used or has expired. Ask your family to send a fresh one.",
   sittingPrivate: "Each sitting stays private to its teller.",
   storyPrivate: "This story opens once you've added your own telling.",
+  exportOrganizerOnly: "Only the family organizer can download the whole archive.",
 };
