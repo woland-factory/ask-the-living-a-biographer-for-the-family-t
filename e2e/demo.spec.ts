@@ -27,6 +27,34 @@ test("the landing 'See how it works' link opens the seeded side-by-side", async 
   ).toBeVisible();
 });
 
+test("the /demo signature moment renders well within a minute", async ({
+  page,
+}) => {
+  const start = Date.now();
+  await page.goto("/demo");
+
+  // The ready state has its own page heading, then the two tellings.
+  await expect(
+    page.getByRole("heading", { name: "A short example" })
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "The bakery on Sunday mornings" })
+  ).toBeVisible();
+  await expect(page.locator(".sbs-column")).toHaveCount(2);
+
+  // Both open cross-questions are present.
+  await expect(
+    page.getByText("What songs did Rosa sing while the bread baked?")
+  ).toBeVisible();
+  await expect(
+    page.getByText("Who was the neighbor your mother saved the first loaf for?")
+  ).toBeVisible();
+
+  expect(Date.now() - start, "demo renders under the budget").toBeLessThan(
+    30_000
+  );
+});
+
 test("the demo has no horizontal scroll at 390px", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 800 });
   await page.goto("/demo");

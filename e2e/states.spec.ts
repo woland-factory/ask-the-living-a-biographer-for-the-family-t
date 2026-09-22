@@ -30,7 +30,10 @@ test("no horizontal scroll and tappable actions at 390px", async ({ page }) => {
   }
 
   const button = page.getByRole("button", { name: "Email me a link" });
-  const box = await button.boundingBox();
-  expect(box).not.toBeNull();
-  expect(box!.height).toBeGreaterThanOrEqual(44);
+  await expect(button).toBeVisible();
+  // Poll the height so a first paint before the CSS bundle applies over the
+  // inline critical CSS settles instead of failing on a transient measurement.
+  await expect
+    .poll(async () => (await button.boundingBox())?.height ?? 0)
+    .toBeGreaterThanOrEqual(44);
 });

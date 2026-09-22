@@ -98,8 +98,9 @@ relative's private recordings, and the endpoint enforces that server-side.
 - **shared/**: `bank.json`, the curated question bank, imported by the frontend
   and read by the backend so the two never drift.
 - **e2e/**: Playwright tests for sign-in, creating a space, the interview,
-  settings, the gap map, inviting a relative, the side-by-side tellings, and the
-  whole-space export.
+  settings, the gap map, inviting a relative, the side-by-side tellings, the
+  whole-space export, the first-run walkthrough, and a 390px mobile sweep of
+  every screen.
 
 Data lives in PostgreSQL. In production the API talks to Postgres directly; the
 test suite uses an in-process Postgres so it needs no database of its own.

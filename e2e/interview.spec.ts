@@ -174,7 +174,8 @@ test("interview screen has no horizontal scroll at 390px", async ({
   expect(overflows, "horizontal scroll on interview").toBeFalsy();
 
   const record = page.getByRole("button", { name: "Record your answer" });
-  const box = await record.boundingBox();
-  expect(box).not.toBeNull();
-  expect(box!.height).toBeGreaterThanOrEqual(44);
+  await expect(record).toBeVisible();
+  await expect
+    .poll(async () => (await record.boundingBox())?.height ?? 0)
+    .toBeGreaterThanOrEqual(44);
 });
