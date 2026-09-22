@@ -38,11 +38,14 @@ export function Demo() {
 
         {view.kind === "ready" && (
           <div className="stack">
-            <p className="muted demo-intro">
-              A short example. Two people remember the same mornings, and each is
-              asked the one question the other's telling opened.
-            </p>
-            <SideBySideColumns data={view.data} />
+            <div className="sbs-header">
+              <h1 className="section-title">A short example</h1>
+              <p className="muted demo-intro">
+                Two people remember the same mornings, and each is asked the one
+                question the other's telling opened.
+              </p>
+            </div>
+            <SideBySideColumns data={view.data} headingLevel={2} />
             <Link className="btn btn-primary btn-block" to="/signin">
               Create a space to begin
             </Link>

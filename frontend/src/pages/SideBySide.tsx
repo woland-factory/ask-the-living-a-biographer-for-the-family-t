@@ -18,12 +18,19 @@ type View =
  * block. Two columns on desktop, stacked on mobile. Reused by the signed-in
  * page and the public demo.
  */
-export function SideBySideColumns({ data }: { data: SideBySideData }) {
+export function SideBySideColumns({
+  data,
+  headingLevel = 1,
+}: {
+  data: SideBySideData;
+  headingLevel?: 1 | 2;
+}) {
+  const StoryHeading = headingLevel === 2 ? "h2" : "h1";
   return (
     <div className="stack">
       <div className="sbs-header">
         <p className="topic-label">Side by side</p>
-        <h1 className="section-title">{data.story.label}</h1>
+        <StoryHeading className="section-title">{data.story.label}</StoryHeading>
         <p className="muted">
           Two tellings of the same memory, kept in each voice.
         </p>

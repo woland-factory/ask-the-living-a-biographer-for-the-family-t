@@ -186,6 +186,9 @@ a { color: var(--sage); }
   border-radius: 12px;
 }
 @keyframes shimmer { 0% { background-position: 100% 0; } 100% { background-position: -100% 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .skeleton { animation: none; background: #efe7d8; }
+}
 .sk-line { height: 1rem; margin-bottom: 0.6rem; }
 .sk-card { height: 72px; margin-bottom: 0.75rem; }
 
@@ -295,7 +298,7 @@ a { color: var(--sage); }
 .gap-filters { display: grid; gap: 0.85rem; }
 .chips { display: flex; flex-wrap: wrap; gap: 0.45rem; }
 .chip {
-  min-height: 40px;
+  min-height: 44px;
   padding: 0 0.9rem;
   border-radius: 999px;
   border: 1px solid var(--line);
@@ -388,6 +391,34 @@ a { color: var(--sage); }
 
 .interview-followup { border-color: #d5e2d6; }
 .followup-label { color: var(--sage); }
+
+/* First-run walkthrough coach-card */
+.walkthrough {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.85rem;
+  background: #eef3ee;
+  border: 1px solid #d5e2d6;
+  border-radius: 12px;
+  padding: 0.85rem 1rem;
+}
+.walkthrough-step {
+  flex: none;
+  margin: 0;
+  color: var(--sage);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.walkthrough-text {
+  flex: 1 1 12rem;
+  margin: 0;
+  color: var(--ink);
+  font-size: 0.97rem;
+}
+.walkthrough-skip { flex: none; }
 
 /* Landing secondary link */
 .hero-secondary { margin: 1rem 0 0; }

@@ -3,6 +3,14 @@ import { Link, useNavigate } from "react-router-dom";
 import { TopBar } from "../components/TopBar";
 import { ListLoading } from "../components/Loading";
 import { CreateSpaceForm } from "../components/CreateSpaceForm";
+import { Walkthrough } from "../components/Walkthrough";
+import { useAuth } from "../auth";
+import {
+  beginWalkthrough,
+  hasWalkthroughBegun,
+  isWalkthroughDone,
+  useFirstRun,
+} from "../firstRun";
 import { api, type Space } from "../api";
 import { formatYears } from "../format";
 
@@ -10,6 +18,9 @@ type LoadState = "loading" | "ready" | "error";
 
 export function Home() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const organizer = user?.email != null;
+  const { active: firstRunActive, finish: finishFirstRun } = useFirstRun(organizer);
   const [spaces, setSpaces] = useState<Space[]>([]);
   const [state, setState] = useState<LoadState>("loading");
 
@@ -17,12 +28,19 @@ export function Home() {
     setState("loading");
     try {
       const { spaces } = await api.listSpaces();
+      // Suppress the walkthrough for anyone who already has a space and has not
+      // begun it here (people who used the app before this shipped). A fresh
+      // organizer with no space begins it now.
+      if (organizer && !isWalkthroughDone() && !hasWalkthroughBegun()) {
+        if (spaces.length > 0) finishFirstRun();
+        else beginWalkthrough();
+      }
       setSpaces(spaces);
       setState("ready");
     } catch {
       setState("error");
     }
-  }, []);
+  }, [organizer, finishFirstRun]);
 
   useEffect(() => {
     void load();
@@ -67,6 +85,9 @@ export function Home() {
                 A space holds everything your family remembers about one person.
               </p>
             </div>
+            {organizer && firstRunActive && (
+              <Walkthrough step={1} onSkip={finishFirstRun} />
+            )}
             <CreateSpaceForm onCreated={onCreated} />
           </div>
         )}

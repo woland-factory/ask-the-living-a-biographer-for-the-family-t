@@ -2,6 +2,9 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { TopBar } from "../components/TopBar";
 import { AppShellLoading } from "../components/Loading";
+import { Walkthrough } from "../components/Walkthrough";
+import { useAuth } from "../auth";
+import { useFirstRun } from "../firstRun";
 import { api, ApiError, type CreatedInvite, type Invite, type Space } from "../api";
 import { ExportPanel } from "../components/ExportPanel";
 import { formatYears } from "../format";
@@ -15,6 +18,9 @@ type View =
 
 export function SpaceDetail() {
   const { id } = useParams<{ id: string }>();
+  const { user } = useAuth();
+  const organizer = user?.email != null;
+  const { active: firstRunActive, finish: finishFirstRun } = useFirstRun(organizer);
   const [view, setView] = useState<View>({ kind: "loading" });
 
   useEffect(() => {
@@ -68,6 +74,9 @@ export function SpaceDetail() {
               {view.space.subject_name.split(" ")[0]} will gather, in the voices
               of everyone who loved them.
             </p>
+            {organizer && firstRunActive && (
+              <Walkthrough step={2} onSkip={finishFirstRun} />
+            )}
             <Link
               className="btn btn-primary btn-block"
               to={`/space/${view.space.id}/interview`}

@@ -13,6 +13,9 @@ import { nextQuestion, topicLabel, type BankQuestion } from "../interview/bank";
 import { useRecorder } from "../interview/useRecorder";
 import { transcribe } from "../interview/transcribe";
 import { firstName, formatClock } from "../format";
+import { Walkthrough } from "../components/Walkthrough";
+import { useAuth } from "../auth";
+import { useFirstRun } from "../firstRun";
 
 const GENERIC = "That didn't work. Check your connection and try again.";
 
@@ -31,6 +34,12 @@ interface Completion {
 
 export function Interview() {
   const { id } = useParams<{ id: string }>();
+  const { user } = useAuth();
+  const organizer = user?.email != null;
+  const { active: firstRunActive, finish: finishFirstRun } = useFirstRun(organizer);
+  // The final walkthrough beat shows this sitting only, right after the first
+  // answer saves. It never returns on reload (first success is persisted).
+  const [finalBeat, setFinalBeat] = useState(false);
   const [phase, setPhase] = useState<Phase>("loading");
   const [space, setSpace] = useState<Space | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -173,6 +182,12 @@ export function Interview() {
         setDismissed((prev) => new Set(prev).add(current.followup.id));
       }
       setSavedThisSitting((n) => n + 1);
+      // First answer saved is first success: retire the walkthrough for good and
+      // show its final beat once, anchored to the next question.
+      if (firstRunActive) {
+        finishFirstRun();
+        setFinalBeat(true);
+      }
       recorder.reset();
       setSaving(false);
       void runTranscription(created.id);
@@ -180,7 +195,7 @@ export function Interview() {
       setSaveError(err instanceof ApiError ? err.message : GENERIC);
       setSaving(false);
     }
-  }, [current, session, recorder, runTranscription]);
+  }, [current, session, recorder, runTranscription, firstRunActive, finishFirstRun]);
 
   // "Not this topic yet" applies to bank questions only.
   const defer = useCallback(async () => {
@@ -255,6 +270,17 @@ export function Interview() {
             <p className="muted interview-intro">
               Take your time. One question at a time, in your own voice.
             </p>
+
+            {organizer && firstRunActive && saved.length === 0 && (
+              <Walkthrough step={2} onSkip={finishFirstRun} />
+            )}
+            {organizer && finalBeat && (
+              <Walkthrough
+                step={3}
+                hasFollowup={current.kind === "followup"}
+                onSkip={() => setFinalBeat(false)}
+              />
+            )}
 
             <section
               className={`card interview-card${current.kind === "followup" ? " interview-followup" : ""}`}
