@@ -13,6 +13,7 @@ const TARGET_FILES = [
   path.join(root, "frontend", "index.html"),
   path.join(root, "backend", "src", "lib", "copy.ts"),
   path.join(root, "backend", "src", "lib", "export.ts"),
+  path.join(root, "backend", "src", "lib", "mailer.ts"),
   path.join(root, "backend", "src", "seed.ts"),
   path.join(root, "shared", "bank.json"),
   path.join(root, "README.md"),

@@ -18,6 +18,7 @@ const FOLLOWUP_CAP = 2; // At most two open follow-ups per answer.
 // 12 MB cap on a single recording's bytes. The client also caps length.
 const AUDIO_BODY_LIMIT = 12 * 1024 * 1024;
 const ANSWERS_LIST_LIMIT = 200;
+const FOLLOWUP_LIST_LIMIT = 50; // Bound the open-follow-ups read like every other list.
 
 const ALLOWED_AUDIO_MIME = new Set([
   "audio/webm",
@@ -257,7 +258,8 @@ export function registerInterviewRoutes(
                      AND q.membership_id = $2)
                  OR (q.assigned_to IS NULL AND q.origin = 'crosstelling'
                      AND q.membership_id = $2))
-          ORDER BY (q.assigned_to IS NOT NULL) DESC, q.created_at DESC`,
+          ORDER BY (q.assigned_to IS NOT NULL) DESC, q.created_at DESC
+          LIMIT ${FOLLOWUP_LIST_LIMIT}`,
         [session.space_id, session.membership_id]
       );
 

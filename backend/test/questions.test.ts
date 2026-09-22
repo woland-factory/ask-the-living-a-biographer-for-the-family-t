@@ -89,6 +89,37 @@ describe("gap map questions", () => {
     expect(body.people.length).toBeGreaterThan(0);
   });
 
+  it("seeds the bank in one idempotent upsert: re-seeding leaves 16 rows and stable counts", async () => {
+    const cookie = await signIn(ctx.app, "gap-idem@example.com");
+    const spaceId = await createSpace(ctx, cookie, "Nora Whitfield");
+
+    // Session start and every gap-map read run the single multi-row upsert.
+    // Running it several times must not duplicate rows or move counts.
+    await startSession(ctx, cookie, spaceId);
+    for (let i = 0; i < 3; i++) {
+      await ctx.app.inject({
+        method: "GET",
+        url: `/spaces/${spaceId}/questions`,
+        headers: { cookie },
+      });
+    }
+    await startSession(ctx, cookie, spaceId);
+
+    const rows = await ctx.db.query<{ n: string }>(
+      "SELECT count(*)::int AS n FROM questions WHERE space_id = $1 AND origin = 'bank'",
+      [spaceId]
+    );
+    expect(Number(rows.rows[0].n)).toBe(BANK.length);
+
+    const gap = await ctx.app.inject({
+      method: "GET",
+      url: `/spaces/${spaceId}/questions`,
+      headers: { cookie },
+    });
+    expect(gap.json().counts.open).toBe(BANK.length);
+    expect(gap.json().counts.total).toBe(BANK.length);
+  });
+
   it("moves status with PATCH, sets and clears resolved_at, and shrinks the open count", async () => {
     const cookie = await signIn(ctx.app, "gap-b@example.com");
     const spaceId = await createSpace(ctx, cookie, "Henry Okafor");

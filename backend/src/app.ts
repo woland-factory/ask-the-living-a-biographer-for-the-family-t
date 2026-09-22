@@ -64,10 +64,12 @@ export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> 
 
   await app.register(helmet, { contentSecurityPolicy: false });
   await app.register(cookie, { secret: config.sessionSecret });
+  // Rate limiting is applied per route on mutations and auth (each declares its
+  // own config.rateLimit). It is NOT global: a global counter also throttles the
+  // SPA shell, static assets, and read GETs, so a single page load spends many
+  // hits and families behind one shared proxy IP would 429 on normal browsing.
   await app.register(rateLimit, {
-    global: true,
-    max: 300,
-    timeWindow: "1 minute",
+    global: false,
     errorResponseBuilder: () => ({
       statusCode: 429,
       error: "Too Many Requests",

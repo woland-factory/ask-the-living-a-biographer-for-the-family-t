@@ -99,6 +99,9 @@ describe("interview loop", () => {
     expect(body.answered_keys).toEqual([]);
     expect(body.deferred_topics).toEqual([]);
     expect(body.answers).toEqual([]);
+    // The open-follow-ups list is a bounded array (LIMIT), same shape as before.
+    expect(Array.isArray(body.followups)).toBe(true);
+    expect(body.followups.length).toBeLessThanOrEqual(50);
 
     const unknown = await ctx.app.inject({
       method: "GET",

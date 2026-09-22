@@ -16,4 +16,14 @@ describe("GET /healthz", () => {
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({ status: "ok" });
   });
+
+  // Rate limiting is per route on mutations/auth, not global: serving the SPA
+  // shell must never 429, or a page load (many asset hits) and shared-proxy
+  // families would be throttled on normal browsing.
+  it("does not rate-limit the SPA shell across many page loads", async () => {
+    for (let i = 0; i < 350; i++) {
+      const res = await ctx.app.inject({ method: "GET", url: "/" });
+      expect(res.statusCode).toBe(200);
+    }
+  });
 });

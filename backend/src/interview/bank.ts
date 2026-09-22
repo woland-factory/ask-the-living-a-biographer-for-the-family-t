@@ -28,15 +28,22 @@ export const BANK: BankQuestion[] = JSON.parse(
  * Seed one open bank question per (space, bank key). Idempotent: the unique
  * index on (space_id, bank_question_key) makes ON CONFLICT DO NOTHING skip
  * rows already present, so this is safe to run on every interview start and on
- * every gap-map load.
+ * every gap-map load. One multi-row insert, one round-trip: the gap-map read
+ * does not pay a write per bank question to render.
  */
 export async function seedBankQuestions(db: Queryable, spaceId: string): Promise<void> {
-  for (const q of BANK) {
-    await db.query(
-      `INSERT INTO questions (space_id, origin, topic, text, bank_question_key, status)
-       VALUES ($1, 'bank', $2, $3, $4, 'open')
-       ON CONFLICT (space_id, bank_question_key) DO NOTHING`,
-      [spaceId, q.topic, q.text, q.key]
-    );
-  }
+  if (BANK.length === 0) return;
+  // $1 is the space id, reused by every row. Each question adds three params.
+  const params: unknown[] = [spaceId];
+  const tuples = BANK.map((q, i) => {
+    const base = i * 3 + 2;
+    params.push(q.topic, q.text, q.key);
+    return `($1, 'bank', $${base}, $${base + 1}, $${base + 2}, 'open')`;
+  });
+  await db.query(
+    `INSERT INTO questions (space_id, origin, topic, text, bank_question_key, status)
+     VALUES ${tuples.join(", ")}
+     ON CONFLICT (space_id, bank_question_key) DO NOTHING`,
+    params
+  );
 }
