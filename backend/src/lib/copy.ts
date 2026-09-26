@@ -7,6 +7,7 @@ export const copy = {
   notFound: "That page is not here.",
   validation: "Please check what you entered and try again.",
   rateLimit: "You're going a little fast. Try again in a moment.",
+  mailUnavailable: "We can't email your link right now. Try again in a few minutes.",
   generic: "That didn't work. Check your connection and try again.",
   tooLarge: "That recording is too large to save. Try a shorter one.",
   inviteGone: "That invite link was already used or has expired. Ask your family to send a fresh one.",

@@ -73,7 +73,7 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AuthDeps): void {
         `${req.protocol}://${req.headers.host ?? "localhost"}`;
       const verifyUrl = `${base.replace(/\/$/, "")}/auth/verify?token=${rawToken}`;
 
-      await sendMagicLink({
+      const delivered = await sendMagicLink({
         email,
         url: verifyUrl,
         config,
@@ -83,6 +83,12 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AuthDeps): void {
         },
         onLocalLink: (e, url) => e2eLinks?.set(e, url),
       });
+
+      // An outage looks the same for every address, so this leaks nothing about
+      // whether the email is known. Don't pretend a link is on its way.
+      if (!delivered) {
+        return reply.code(503).send({ error: copy.mailUnavailable });
+      }
 
       // Always the same answer, whether or not the email is known.
       return reply.code(200).send({ ok: true });

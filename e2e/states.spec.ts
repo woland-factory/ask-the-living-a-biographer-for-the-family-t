@@ -16,6 +16,33 @@ test("an expired sign-in link shows a designed, calm message", async ({
   ).toBeVisible();
 });
 
+test("shows an honest error, not a false confirmation, when a link can't be sent", async ({
+  page,
+}) => {
+  // Stand in for a mail outage: the API replies as the backend does when it
+  // cannot deliver. The screen must not claim a link is on its way.
+  await page.route("**/auth/magic-link", (route) =>
+    route.fulfill({
+      status: 503,
+      contentType: "application/json",
+      body: JSON.stringify({
+        error: "We can't email your link right now. Try again in a few minutes.",
+      }),
+    })
+  );
+
+  await page.goto("/signin");
+  await page.getByLabel("Email").fill("someone@example.com");
+  await page.getByRole("button", { name: "Email me a link" }).click();
+
+  await expect(
+    page.getByText("We can't email your link right now. Try again in a few minutes.")
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Check your email" })
+  ).toHaveCount(0);
+});
+
 test("no horizontal scroll and tappable actions at 390px", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 800 });
 

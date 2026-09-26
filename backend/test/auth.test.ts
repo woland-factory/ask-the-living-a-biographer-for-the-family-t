@@ -29,6 +29,56 @@ describe("magic-link auth", () => {
     expect(b.json()).toEqual({ ok: true });
   });
 
+  it("reports an honest error, identical for all addresses, when it cannot send", async () => {
+    // Production with no Mailer configured: sending is structurally impossible.
+    const down = await makeTestApp({
+      isProduction: true,
+      isE2E: false,
+      internalServiceKey: "",
+    });
+    const known = await down.app.inject({
+      method: "POST",
+      url: "/auth/magic-link",
+      payload: { email: "known@example.com" },
+    });
+    const unknown = await down.app.inject({
+      method: "POST",
+      url: "/auth/magic-link",
+      payload: { email: "stranger@example.com" },
+    });
+    // Not a false "check your email": an honest, product-voice failure.
+    expect(known.statusCode).toBe(503);
+    expect(known.json().error).toContain("can't email your link");
+    // Identical for a known and an unknown address (no enumeration).
+    expect(unknown.statusCode).toBe(known.statusCode);
+    expect(unknown.json()).toEqual(known.json());
+    // No raw error, stack trace, or token in the response.
+    const bodyText = JSON.stringify(known.json());
+    expect(bodyText).not.toContain("Error:");
+    expect(bodyText).not.toContain("token");
+    await down.app.close();
+    await down.db.close();
+  });
+
+  it("reports the same honest error when the mailer send hard-fails", async () => {
+    // Mailer configured, but the endpoint is unreachable, so the send fails.
+    const broken = await makeTestApp({
+      isProduction: true,
+      isE2E: false,
+      internalServiceKey: "present-but-endpoint-down",
+      mailerUrl: "http://127.0.0.1:1/send",
+    });
+    const res = await broken.app.inject({
+      method: "POST",
+      url: "/auth/magic-link",
+      payload: { email: "known@example.com" },
+    });
+    expect(res.statusCode).toBe(503);
+    expect(res.json().error).toContain("can't email your link");
+    await broken.app.close();
+    await broken.db.close();
+  });
+
   it("stores only a hash of the token, never the raw token", async () => {
     const email = "hash@example.com";
     await ctx.app.inject({
